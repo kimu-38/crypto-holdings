@@ -3,12 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="robots" content="noindex,nofollow">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="保有資産">
 <meta name="theme-color" content="#14202b">
-<title>保有資産</title>
+<title>保有資産メモ</title>
 <style>
 :root{--bg:#eef1f4;--card:#fff;--ink:#14202b;--mute:#5d6b78;--line:#d6dde4;--acc:#1f4fd8;--accink:#fff;--bar:#c9d6f7;--up:#0a7a48;--down:#b42318;--warn:#fff4d6;--warnink:#6b4a00;
 box-sizing:border-box;padding-top:env(safe-area-inset-top,0px)}
@@ -36,6 +35,7 @@ h2{font-size:16px;margin:22px 0 8px}
 .tag.w{background:var(--warn);color:var(--warnink);border-color:transparent}
 button{font:inherit;min-height:52px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:0 18px;cursor:pointer;font-weight:500}
 button.p{background:var(--acc);color:var(--accink);border-color:var(--acc);width:100%;font-size:18px;font-weight:700;margin-top:14px}
+button.p2{width:100%;font-size:18px;font-weight:700;margin-top:12px;border-color:var(--acc);color:var(--acc)}
 button.p:disabled{opacity:.6}
 button.s{min-height:44px;padding:0 12px;font-size:14px}
 button.dg{color:var(--down)}
@@ -57,17 +57,31 @@ input,select,textarea{font:inherit;font-size:16px;color:var(--ink);background:va
 .cb{display:grid;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
 .cb:last-child{border-bottom:0}
 .cb .two2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.cb .lbl{font-size:13px;color:var(--mute);margin-bottom:2px}
+.lbl{font-size:13px;color:var(--mute);margin-bottom:2px}
 .cand{display:grid;gap:6px}
 .cand button{min-height:44px;text-align:left;font-size:14px;font-weight:400}
 .hrow{width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center;border:0;border-bottom:1px solid var(--line);border-radius:0;background:var(--card);min-height:64px;padding:8px 14px;gap:10px}
 .hrow:last-child{border-bottom:0}
 .hrow .amt{font-variant-numeric:tabular-nums;white-space:nowrap}
-.srow{display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);align-items:center}
+.srow{display:grid;grid-template-columns:1fr 120px;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);align-items:center}
 .srow:last-child{border-bottom:0}
+.srow .sx{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center}
 textarea{min-height:110px;font:13px/1.4 ui-monospace,Menlo,monospace}
 a{color:var(--acc)}
-.foot{margin-top:22px;font-size:12px;color:var(--mute)}
+.foot{margin-top:22px;font-size:13px;color:var(--mute)}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.seg button{min-height:46px}
+.seg button[aria-pressed="true"]{background:var(--acc);color:var(--accink);border-color:var(--acc);font-weight:700}
+.sel{background:var(--bar);border-radius:10px;padding:8px 12px;font-size:15px}
+.pv{padding:10px 14px;border-bottom:1px solid var(--line);font-size:14px;font-variant-numeric:tabular-nums}
+.pv:last-child{border-bottom:0}
+.pv small{display:block;color:var(--mute)}
+.pv.er{background:var(--warn);color:var(--warnink)}
+.pv.er small{color:var(--warnink)}
+.cnt{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.cnt span{border:1px solid var(--line);border-radius:99px;padding:2px 12px;font-size:14px;background:var(--card)}
+details summary{padding:10px 14px;cursor:pointer;min-height:44px}
+.attr{font-size:13px;color:var(--mute);margin:6px 0}
 </style>
 </head>
 <body>
@@ -83,12 +97,35 @@ const CGRE=/^[a-z0-9._-]+$/i,DRE=/^\d{4}-\d{2}-\d{2}$/;
 const API="https://api.coingecko.com/api/v3";
 const jstDate=iso=>new Date(Date.parse(iso)+32400000).toISOString().slice(0,10);
 const jstTime=iso=>{const j=new Date(Date.parse(iso)+32400000).toISOString();return j.slice(0,4)+"/"+j.slice(5,7)+"/"+j.slice(8,10)+" "+j.slice(11,16)};
-function parseQty(s){if(s==null)return{ok:true,v:null};const t=String(s).normalize("NFKC").replace(/[,、，\s]/g,"");if(t==="")return{ok:true,v:null};if(!/^\d+(\.\d+)?$/.test(t))return{ok:false,v:null};const v=Number(t);return Number.isFinite(v)?{ok:true,v}:{ok:false,v:null}}
+const norm=s=>String(s==null?"":s).normalize("NFKC").trim().toLowerCase().replace(/\s+/g," ");
+let _n=0;const newId=p=>p+Date.now().toString(36)+(_n++).toString(36);
+
+/* ---- 数量（小数の精度を保つ） ---- */
+function expandExp(s){const m=/^(\d+)(?:\.(\d+))?[eE]([+-]?\d+)$/.exec(s);if(!m)return null;const e=parseInt(m[3],10);if(Math.abs(e)>40)return null;
+const digits=m[1]+(m[2]||""),pt=m[1].length+e;if(pt<=0)return"0."+"0".repeat(-pt)+digits;if(pt>=digits.length)return digits+"0".repeat(pt-digits.length);return digits.slice(0,pt)+"."+digits.slice(pt)}
+function normDec(t){let[i,f=""]=t.split(".");i=i.replace(/^0+(?=\d)/,"");f=f.replace(/0+$/,"");return f?i+"."+f:i}
+function plain(n){const s=String(n);return/e/i.test(s)?expandExp(s):s}
+function toStored(dec){const n=Number(dec);if(Number.isFinite(n)){const p=plain(n);if(p&&normDec(p)===dec)return n}return dec}
+function parseQty(s){if(s==null)return{ok:true,v:null,dec:null};
+let t=String(s).normalize("NFKC").replace(/[,，、\s]/g,"");if(t==="")return{ok:true,v:null,dec:null};
+if(/^\d+(\.\d+)?[eE][+-]?\d+$/.test(t)){const x=expandExp(t);if(x==null)return{ok:false,v:null,dec:null};t=x}
+if(t[0]===".")t="0"+t;t=t.replace(/\.$/,"");
+if(!/^\d+(\.\d+)?$/.test(t)||t.length>60)return{ok:false,v:null,dec:null};
+const dec=normDec(t);return{ok:true,v:toStored(dec),dec}}
+const qnum=v=>v==null?null:Number(v);
+const qdec=v=>v==null?null:typeof v==="string"?normDec(v):normDec(plain(v));
+const okQ=q=>q===null||(typeof q==="number"&&Number.isFinite(q)&&q>=0)||(typeof q==="string"&&/^\d+(\.\d+)?$/.test(q));
+
+/* ---- 銘柄の候補（IDは検索で確認できたもの以外は一般的なIDです。取得できない場合は「価格なし」と表示されます） ---- */
+const CATALOG=[["bitcoin","BTC","ビットコイン","Bitcoin"],["ethereum","ETH","イーサリアム","Ethereum"],["ripple","XRP","リップル","XRP Ripple"],["solana","SOL","ソラナ","Solana"],["bitcoin-cash","BCH","ビットコインキャッシュ","Bitcoin Cash"],["binancecoin","BNB","BNB","Binance Coin","バイナンスコイン"],["cardano","ADA","エイダ","Cardano","カルダノ"],["dogecoin","DOGE","ドージコイン","Dogecoin"],["litecoin","LTC","ライトコイン","Litecoin"],["polkadot","DOT","ポルカドット","Polkadot"],["avalanche-2","AVAX","アバランチ","Avalanche"],["chainlink","LINK","チェーンリンク","Chainlink"],["stellar","XLM","ステラルーメン","Stellar Lumens"],["tron","TRX","トロン","Tron"],["shiba-inu","SHIB","シバイヌ","Shiba Inu","柴犬"],["ethereum-classic","ETC","イーサリアムクラシック","Ethereum Classic"],["cosmos","ATOM","コスモス","Cosmos"],["algorand","ALGO","アルゴランド","Algorand"],["tether","USDT","テザー","Tether"],["usd-coin","USDC","USDコイン","USD Coin"],["the-open-network","TON","トンコイン","Toncoin"],["nem","XEM","ネム","NEM"],["symbol","XYM","シンボル","Symbol"],["zaif-token","ZAIF","ザイフ","Zaif Token"],["sui","SUI","スイ","Sui"],["aptos","APT","アプトス","Aptos"],["near","NEAR","ニア","NEAR Protocol"],["uniswap","UNI","ユニスワップ","Uniswap"],["monero","XMR","モネロ","Monero"],["internet-computer","ICP","インターネットコンピュータ","Internet Computer"],["filecoin","FIL","ファイルコイン","Filecoin"],["hedera-hashgraph","HBAR","ヘデラ","Hedera"],["arbitrum","ARB","アービトラム","Arbitrum"],["optimism","OP","オプティミズム","Optimism"],["pepe","PEPE","ペペ","Pepe"],["chiliz","CHZ","チリーズ","Chiliz"],["enjincoin","ENJ","エンジンコイン","Enjin Coin"],["decentraland","MANA","ディセントラランド","Decentraland"],["the-sandbox","SAND","サンドボックス","The Sandbox"],["basic-attention-token","BAT","ベーシックアテンショントークン","Basic Attention Token"]]
+.map(([cg,sym,ja,en,al])=>({cg,sym,ja,en,al:al?[al]:[]}));
+
+/* ---- データ検証・読み込み ---- */
 function check(d){if(!d||d.v!==2||!Array.isArray(d.services)||!Array.isArray(d.coins)||!d.holdings||typeof d.holdings!=="object")throw new Error("データの形式が違います");
 const sid=new Set(),cid=new Set();
 for(const s of d.services){if(!s||!s.id||!s.name||!GROUPS[s.group]||sid.has(s.id))throw new Error("サービス情報が不正です");sid.add(s.id)}
 for(const c of d.coins){if(!c||!c.id||!c.sym||cid.has(c.id)||(c.cg!=null&&!CGRE.test(c.cg)))throw new Error("銘柄情報が不正です");c.name=c.name||c.sym;c.cg=c.cg||null;cid.add(c.id)}
-for(const s in d.holdings){if(!sid.has(s))throw new Error("保有データのサービスが不明です");for(const c in d.holdings[s]){const q=d.holdings[s][c];if(!cid.has(c)||!(q===null||(typeof q==="number"&&Number.isFinite(q)&&q>=0)))throw new Error("保有数量が不正です")}}
+for(const s in d.holdings){if(!sid.has(s))throw new Error("保有データのサービスが不明です");for(const c in d.holdings[s]){const q=d.holdings[s][c];if(!cid.has(c)||!okQ(q))throw new Error("保有数量が不正です");if(typeof q==="string")d.holdings[s][c]=toStored(normDec(q))}}
 d.prices=d.prices&&typeof d.prices==="object"?d.prices:{};
 for(const c in d.prices){const p=d.prices[c];if(!cid.has(c)||!p||!(typeof p.jpy==="number"&&Number.isFinite(p.jpy)&&p.jpy>0)||typeof p.at!=="string")delete d.prices[c];else p.src=p.src==="manual"?"manual":"auto"}
 const hs=new Map();for(const h of(Array.isArray(d.history)?d.history:[])){if(h&&DRE.test(h.date)&&Number.isFinite(h.total)){for(const k of["excluded","stale","manual","svc","coin"])if(!Array.isArray(h[k]))h[k]=[];hs.set(h.date,h)}}
@@ -96,13 +133,15 @@ d.history=[...hs.values()].sort((a,b)=>a.date<b.date?-1:1);
 d.fetch=d.fetch||null;d.asOf=d.asOf||null;return d}
 function load(st){try{return check(JSON.parse(st.getItem(KEY)))}catch(e){return clone(EMPTY)}}
 function save(st,d){try{st.setItem(KEY,JSON.stringify(d));return true}catch(e){return false}}
+
+/* ---- 価格・評価額 ---- */
 function applyFailure(d,now,msg){d.fetch={okAt:d.fetch?d.fetch.okAt:null,fresh:[],missing:[],error:msg,tried:now}}
 function applyPrices(d,j,now){const fresh=[],missing=[];for(const c of d.coins){if(!c.cg)continue;const p=j&&typeof j==="object"&&j[c.cg]?j[c.cg].jpy:null;if(typeof p==="number"&&Number.isFinite(p)&&p>0){d.prices[c.id]={jpy:p,at:now,src:"auto"};fresh.push(c.id)}else missing.push(c.id)}
 if(!fresh.length)return applyFailure(d,now,"価格が1件も返ってきませんでした");d.fetch={okAt:now,fresh,missing,error:null,tried:now}}
 function valuate(d){const fresh=new Set((d.fetch&&d.fetch.fresh)||[]);const coin={},svc={},grp={exchange:0,lending:0};let total=0;
 for(const c of d.coins){const p=d.prices[c.id];coin[c.id]={qty:0,value:0,price:p?p.jpy:null,at:p?p.at:null,qmiss:false,status:!p?(c.cg?"none":"noid"):(p.src==="manual"?"manual":fresh.has(c.id)?"fresh":"stale")}}
 for(const s of d.services)svc[s.id]={value:0,excl:[],qmiss:0};
-for(const sid in d.holdings)for(const cid in d.holdings[sid]){const q=d.holdings[sid][cid],ci=coin[cid],si=svc[sid];if(!ci||!si)continue;
+for(const sid in d.holdings)for(const cid in d.holdings[sid]){const q=qnum(d.holdings[sid][cid]),ci=coin[cid],si=svc[sid];if(!ci||!si)continue;
 if(q==null){ci.qmiss=true;si.qmiss++;continue}ci.qty+=q;if(ci.price!=null){const v=q*ci.price;ci.value+=v;si.value+=v;total+=v}else if(q>0)si.excl.push(cid)}
 for(const s of d.services)grp[s.group]+=svc[s.id].value;
 const pick=f=>d.coins.filter(c=>coin[c.id].qty>0&&f(coin[c.id])).map(c=>c.id);
@@ -128,10 +167,96 @@ finally{clearTimeout(to)}}
 async function searchCoins(f,q,key){const r=await f(API+"/search?query="+encodeURIComponent(q)+(key?"&x_cg_demo_api_key="+encodeURIComponent(key):""),{cache:"no-store"});
 if(r.status===429)throw KE("取得回数の上限です。1分ほど待ってください");if(!r.ok)throw KE("検索できませんでした（HTTP "+r.status+"）");
 const j=await r.json();return(j.coins||[]).filter(c=>c&&CGRE.test(String(c.id))).slice(0,6).map(c=>({id:c.id,name:c.name,sym:c.symbol,rank:c.market_cap_rank||null}))}
+
+/* ---- 銘柄の検索（名前・略称） ---- */
+function findCoins(d,query){const k=norm(query);if(!k)return[];const cand=[],usedCg=new Set(d.coins.map(c=>c.cg).filter(Boolean)),usedSym=new Set(d.coins.map(c=>norm(c.sym)));
+for(const c of d.coins)cand.push({existingId:c.id,sym:c.sym,name:c.name,cg:c.cg,names:[c.sym,c.name],src:0});
+for(const e of CATALOG){if(usedCg.has(e.cg)||usedSym.has(norm(e.sym)))continue;cand.push({existingId:null,sym:e.sym,name:e.ja,cg:e.cg,names:[e.sym,e.ja,e.en,...e.al],src:1})}
+const out=[];for(const c of cand){const ns=c.names.map(norm);let sc=ns.some((n,i)=>i===0&&n===k)?0:ns.some(n=>n===k)?1:ns.some(n=>n.startsWith(k))?2:ns.some(n=>n.includes(k))?3:9;if(sc<9)out.push({...c,sc})}
+out.sort((a,b)=>a.sc-b.sc||a.src-b.src);return out.slice(0,8)}
+
+/* ---- CSV ---- */
+const HEAD=["サービス名","区分","銘柄","数量"];
+const GL={"取引所":"exchange","レンディング":"lending","exchange":"exchange","lending":"lending"};
+const SAMPLE_CSV="サービス名,区分,銘柄,数量\r\nサンプル取引所A,取引所,BTC,0.01234567\r\nサンプル取引所A,取引所,ETH,0.5\r\nサンプル取引所B,取引所,リップル,1500.25\r\nサンプル取引所B,取引所,SOL,\r\nサンプルレンディング,レンディング,BTC,0.005\r\nサンプルレンディング,レンディング,ETH,0\r\n";
+function decodeBytes(buf){try{return new TextDecoder("utf-8",{fatal:true}).decode(buf)}catch(e){try{return new TextDecoder("shift_jis").decode(buf)}catch(e2){return null}}}
+function parseCSV(text,delim){delim=delim||",";const t=String(text).replace(/^﻿/,"");const recs=[];let cur=[],f="",q=false,line=1,start=1,seen=false;
+const end=()=>{cur.push(f);recs.push({line:start,cells:cur});cur=[];f="";seen=false};
+for(let i=0;i<t.length;i++){const c=t[i];
+if(q){if(c==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else{f+=c;if(c==="\n")line++}continue}
+if(c==='"'&&f===""){q=true;seen=true;continue}
+if(c===delim){cur.push(f);f="";seen=true;continue}
+if(c==="\r"||c==="\n"){if(c==="\r"&&t[i+1]==="\n")i++;if(seen||f!==""||cur.length)end();line++;start=line;continue}
+f+=c;seen=true}
+if(seen||f!==""||cur.length)end();return recs}
+const csvF=s=>/[",\r\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;
+function exportCSV(d){const lines=[HEAD.join(",")];const symCount={};for(const c of d.coins)symCount[norm(c.sym)]=(symCount[norm(c.sym)]||0)+1;
+for(const s of d.services){const h=d.holdings[s.id]||{};for(const c of d.coins){if(!(c.id in h))continue;const label=symCount[norm(c.sym)]>1?c.name:c.sym,dec=qdec(h[c.id]);
+lines.push([csvF(s.name),GROUPS[s.group],csvF(label),dec==null?"":dec].join(","))}}return lines.join("\r\n")+"\r\n"}
+function resolveCoin(d,label){const k=norm(label);if(!k)return null;
+let c=d.coins.find(x=>norm(x.sym)===k)||d.coins.find(x=>norm(x.name)===k);if(c)return{existing:c};
+const e=CATALOG.find(x=>norm(x.sym)===k||norm(x.ja)===k||norm(x.en)===k||x.al.some(a=>norm(a)===k));
+if(e){const c2=d.coins.find(x=>x.cg&&x.cg===e.cg);if(c2)return{existing:c2};return{spec:{sym:e.sym,name:e.ja,cg:e.cg}}}
+const raw=String(label).normalize("NFKC").trim();return{spec:{sym:raw.toUpperCase(),name:raw,cg:null},unknown:true}}
+function planImport(d,text){const plan={fatal:null,items:[],counts:{add:0,change:0,same:0,keep:0,error:0},newServices:[],newCoins:[]};
+const t0=String(text||"").replace(/^﻿/,"");const first=t0.split(/\r\n|\r|\n/).find(l=>l.trim()!=="")||"";
+const delim=first.includes(",")?",":first.includes("\t")?"\t":",";const recs=parseCSV(t0,delim);
+if(!recs.length){plan.fatal="CSVが空です。";return plan}
+const h=recs[0].cells.map(norm);
+if(h.length<4||HEAD.some((x,i)=>h[i]!==norm(x))){plan.fatal="1行目は、見出し「サービス名,区分,銘柄,数量」にしてください。";return plan}
+const svcGroup=new Map(),groups=new Map(),items=[];
+for(const r of recs.slice(1)){const c=r.cells;if(c.every(x=>String(x).trim()===""))continue;
+const it={line:r.line,svcName:String(c[0]==null?"":c[0]).trim(),groupLabel:String(c[1]==null?"":c[1]).trim(),coinLabel:String(c[2]==null?"":c[2]).trim(),qtyRaw:c[3]==null?"":c[3],kind:null,msg:"",svcId:null,coinId:null,coinSpec:null,group:null,newV:undefined,newDec:null,oldDec:undefined,noPrice:false,key:null};items.push(it);
+if(c.length<4){it.kind="error";it.msg="列が足りません（サービス名,区分,銘柄,数量の4列が必要です）";continue}
+if(c.slice(4).some(x=>String(x).trim()!=="")){it.kind="error";it.msg="列が多すぎます（4列にしてください。カンマを含む名前は\"で囲みます）";continue}
+if(!it.svcName){it.kind="error";it.msg="サービス名が空です";continue}
+const g=GL[norm(it.groupLabel)];if(!g){it.kind="error";it.msg="区分は「取引所」か「レンディング」にしてください（"+(it.groupLabel||"空欄")+"）";continue}it.group=g;
+if(!it.coinLabel){it.kind="error";it.msg="銘柄が空です";continue}
+const p=parseQty(it.qtyRaw);if(!p.ok){it.kind="error";it.msg="数量を数字として読めません（"+String(it.qtyRaw)+"）";continue}it.newV=p.v;it.newDec=p.dec;
+const sk=norm(it.svcName),es=d.services.find(s=>norm(s.name)===sk);
+if(es&&es.group!==g){it.kind="error";it.msg="「"+es.name+"」は"+GROUPS[es.group]+"として登録済みです。区分が違います";continue}
+if(!es){if(svcGroup.has(sk)&&svcGroup.get(sk)!==g){it.kind="error";it.msg="同じサービス名で区分が食い違っています";continue}svcGroup.set(sk,g)}
+it.svcId=es?es.id:null;it.sk=sk;
+const rc=resolveCoin(d,it.coinLabel);if(rc.existing){it.coinId=rc.existing.id}else{it.coinSpec=rc.spec;it.noPrice=!rc.spec.cg}
+it.key=sk+"|"+(it.coinId?"e:"+it.coinId:it.coinSpec.cg?"n:"+it.coinSpec.cg:"u:"+norm(it.coinLabel));
+}
+const by=new Map();for(const it of items)if(!it.kind){(by.get(it.key)||by.set(it.key,[]).get(it.key)).push(it)}
+for(const g of by.values())if(g.length>1){const ls=g.map(x=>x.line);for(const it of g){it.kind="error";it.msg="同じサービス・銘柄の行が重複しています（"+ls.join("、")+"行目）。どれを使うか決めて、1行にしてください"}}
+for(const it of items){if(it.kind)continue;
+let old;if(it.svcId&&it.coinId){const hh=d.holdings[it.svcId];old=hh&&it.coinId in hh?hh[it.coinId]:undefined}
+it.oldDec=old===undefined?undefined:qdec(old);
+if(old===undefined)it.kind="add";
+else if(it.newDec==null){it.kind=old===null?"same":"keep";if(it.kind==="keep")it.msg="空欄のため、既存の数量（"+qdec(old)+"）は変えません"}
+else it.kind=it.newDec===qdec(old)?"same":"change"}
+const ns=new Set(),nc=new Set();
+for(const it of items){plan.counts[it.kind]++;if(it.kind==="add"||it.kind==="change"){if(!it.svcId&&!ns.has(it.sk)){ns.add(it.sk);plan.newServices.push(it.svcName+"（"+GROUPS[it.group]+"）")}
+if(!it.coinId){const ck=it.coinSpec.cg||"u:"+norm(it.coinLabel);if(!nc.has(ck)){nc.add(ck);plan.newCoins.push({sym:it.coinSpec.sym,name:it.coinSpec.name,noPrice:!it.coinSpec.cg})}}}}
+plan.items=items;return plan}
+function applyPlan(d,plan){const sm={},cm={};let n=0;
+for(const it of plan.items){if(it.kind!=="add"&&it.kind!=="change")continue;
+let s=(it.svcId&&d.services.find(x=>x.id===it.svcId))||sm[it.sk]||d.services.find(x=>norm(x.name)===it.sk);
+if(!s){s={id:newId("s"),name:it.svcName,group:it.group};d.services.push(s)}sm[it.sk]=s;
+let c=it.coinId&&d.coins.find(x=>x.id===it.coinId);
+if(!c){const sp=it.coinSpec||{sym:it.coinLabel.toUpperCase(),name:it.coinLabel,cg:null};const ck=sp.cg||"u:"+norm(sp.sym);c=cm[ck]||(sp.cg&&d.coins.find(x=>x.cg===sp.cg))||d.coins.find(x=>norm(x.sym)===norm(sp.sym));
+if(!c){c={id:newId("c"),sym:sp.sym,name:sp.name||sp.sym,cg:sp.cg||null};d.coins.push(c)}cm[ck]=c}
+(d.holdings[s.id]=d.holdings[s.id]||{})[c.id]=it.newV;n++}
+return n}
+function addHolding(d,o){const name=String(o.svcName||"").trim();if(!name)return{ok:false,err:"サービス名を入力してください"};
+if(!GROUPS[o.group])return{ok:false,err:"区分を選んでください"};
+const es=d.services.find(s=>norm(s.name)===norm(name));if(es&&es.group!==o.group)return{ok:false,err:"「"+es.name+"」は"+GROUPS[es.group]+"として登録済みです"};
+const pk=o.pick;if(!pk||!pk.sym)return{ok:false,err:"銘柄を選んでください"};
+const p=parseQty(o.qtyStr);if(!p.ok)return{ok:false,err:"数量を数字で入力してください"};if(p.v==null)return{ok:false,err:"数量を入力してください（0枚の場合は0）"};
+let s=es;if(!s){s={id:newId("s"),name,group:o.group};d.services.push(s)}
+let c=(pk.existingId&&d.coins.find(x=>x.id===pk.existingId))||(pk.cg&&d.coins.find(x=>x.cg===pk.cg))||d.coins.find(x=>norm(x.sym)===norm(pk.sym));
+if(!c){c={id:newId("c"),sym:String(pk.sym).toUpperCase(),name:pk.name||pk.sym,cg:pk.cg||null};d.coins.push(c)}
+const h=d.holdings[s.id]=d.holdings[s.id]||{},old=h[c.id];h[c.id]=p.v;
+return{ok:true,kind:old===undefined?"add":"change",svc:s,coin:c,dec:p.dec}}
 //CORE_END
 
-let ST;try{ST=window.localStorage;ST.getItem(KEY)}catch(e){const m={};ST={getItem:k=>m[k]??null,setItem:(k,v)=>{m[k]=v}}}
+let ST;try{ST=window.localStorage;ST.getItem(KEY)}catch(e){const m={};ST={getItem:k=>m[k]??null,setItem:(k,v)=>{m[k]=v},removeItem:k=>{delete m[k]}}}
 let S=load(ST),view="home",histSel=null,busy=false,armed="",toast="",saved=true,impText="",cand={},candMsg={};
+let af={svc:"",group:"exchange",q:"",sel:null,qty:"",res:[],online:null,onlineMsg:""};
+let cs={text:"",plan:null};
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const yen=n=>Math.round(n).toLocaleString("ja-JP");
@@ -145,13 +270,21 @@ const apiKey=()=>{try{return(ST.getItem(AK)||"").trim()}catch(e){return""}};
 const cn=id=>{const c=S.coins.find(x=>x.id===id);return c?c.name+(c.name!==c.sym?"（"+c.sym+"）":""):id};
 const names=ids=>ids.map(i=>S.coins.find(c=>c.id===i).sym).join("、");
 const syms=ids=>ids.map(i=>S.coins.find(c=>c.id===i).sym);
+const ATTR='<p class="attr">Powered by <a href="https://www.coingecko.com/en/api/?utm_source=holdings-memo&utm_medium=referral" target="_blank" rel="noopener">CoinGecko API</a>（価格データ）</p>';
+const afterChange=()=>{S.asOf=todayJ();touchToday(S,nowIso());persist()};
 
 function dh(df){if(!df)return'<div class="sub">比べる前回の記録は、まだありません</div>';
 const up=df.amount>0,dn=df.amount<0,sg=up?"+":dn?"−":"±",pct=df.pct==null?"":"（"+sg+Math.abs(df.pct).toFixed(2)+"%）";
 return`<div class="diff ${up?"up":dn?"down":""}">${sg}${yen(Math.abs(df.amount))}円${pct}</div><div class="sub">${fdate(df.prevDate)}の記録からの評価額の変化です。売買や数量の修正も含みます${df.caution?"。除外している銘柄が前回と違うため、参考値です":""}</div>`}
+const toastHtml=()=>toast?`<div class="toast" role="status">${esc(toast)}</div>`:"";
 
 function home(){
-if(!S.services.length)return`<h1>保有資産</h1><div class="big">0<small>円</small></div><div class="warn">まだ保有データがありません。「設定」の「データの取り込み」に、初期データのJSONを貼り付けるか、ファイルを選んでください。</div><button class="p" data-tab="settings">設定を開く</button>`;
+if(!S.services.length)return`${toastHtml()}<h1>はじめに</h1><div class="big" style="font-size:28px;margin-top:6px">保有資産を登録しましょう</div>
+<p class="sub">取引所やレンディングにある仮想通貨の数量を登録すると、日本円の評価額を合計して表示します。取引所のログイン情報は不要です。</p>
+<button class="p" data-a="goadd">手入力で登録</button><button class="p2" data-a="gocsv">CSVを取り込む</button>
+<p class="sub" style="margin-top:14px">以前のバックアップ（JSON）をお持ちの方は、「設定」の「データの取り込み」から復元できます。</p>
+<div class="warn">データはこの端末のブラウザの中にだけ保存され、サーバーには送りません。ブラウザのデータを消すと失われるので、設定からバックアップを控えてください。</div>
+${ATTR}<p class="foot">評価額は参考値です。投資の助言ではありません。詳しくは「設定」の「このアプリについて」をご覧ください。</p>`;
 const V=valuate(S),f=S.fetch,part=V.excluded.length>0,tot=Math.round(V.total);
 const df=histDiff(S,todayJ(),tot,syms(V.excluded));
 const bn=[];
@@ -161,7 +294,7 @@ if(V.stale.length)bn.push(`前回取得した価格を使っている銘柄：${
 if(V.manual.length)bn.push(`手入力の価格を使っている銘柄：${esc(names(V.manual))}。`);
 if(V.qmiss.length)bn.push(`数量が未入力の銘柄：${esc(names(V.qmiss))}（合計に含まれません）。`);
 const rows=S.coins.filter(c=>V.coin[c.id].qty>0||V.coin[c.id].qmiss).map(c=>({c,i:V.coin[c.id]})).sort((a,b)=>b.i.value-a.i.value);
-return`${toast?`<div class="toast" role="status">${esc(toast)}</div>`:""}${saved?"":'<div class="warn">ブラウザに保存できませんでした。設定からバックアップを控えてください。</div>'}
+return`${toastHtml()}${saved?"":'<div class="warn">ブラウザに保存できませんでした。設定からバックアップを控えてください。</div>'}
 <h1>合計評価額${part?"（一部銘柄を除いた合計）":""}</h1>
 ${part?`<div class="warn" role="alert"><b>一部銘柄を除いた合計です。</b>価格が一度も取得・入力されていないため、合計に含めていない銘柄：<b>${esc(names(V.excluded))}</b></div>`:""}
 <div class="big">${yen(V.total)}<small>円</small></div>
@@ -172,16 +305,60 @@ ${bn.map(b=>`<div class="warn" role="alert">${b}</div>`).join("")}
 <div class="two"><div class="card"><span class="sub">取引所</span><b>${yen(V.grp.exchange)}円</b></div><div class="card"><span class="sub">レンディング</span><b>${yen(V.grp.lending)}円</b></div></div>
 <h2>銘柄別</h2><div class="card">${rows.map(({c,i})=>{const st=i.status;return`<div class="row"><span>${esc(c.name)}<span class="tag">${esc(c.sym)}</span>${st==="stale"?'<span class="tag w">前回価格</span>':st==="manual"?'<span class="tag w">手入力</span>':st==="none"||st==="noid"?'<span class="tag w">価格なし</span>':""}</span><span class="amt">${i.price==null?"合計に含めず":yen(i.value)+"円"}</span><span class="s2">${i.qmiss?"数量未入力あり・":""}${qs(i.qty)} ${esc(c.sym)}</span><span class="s2">${i.price==null?"価格なし":"@"+pf(i.price)+"円"+(st==="stale"?"（"+jstTime(i.at)+"に取得）":st==="manual"?"（"+jstTime(i.at)+"に手入力）":"")}</span></div>`}).join("")}</div>
 <h2>サービス別</h2><div class="card">${S.services.map(s=>{const x=V.svc[s.id];return`<div class="row"><span>${esc(s.name)}<span class="tag">${GROUPS[s.group]}</span></span><span class="amt">${yen(x.value)}円</span>${x.excl.length?`<span class="s2" style="grid-column:1/-1">※${esc(names(x.excl))}は価格がないため含まれていません</span>`:""}</div>`}).join("")}</div>
-<p class="foot">価格データ：<a href="https://www.coingecko.com/" target="_blank" rel="noopener">CoinGecko</a></p>`}
+${ATTR}`}
 
 function qty(){
-if(!S.services.length)return`<h1>数量</h1><div class="warn">データがありません。「設定」から初期データを取り込んでください。</div>`;
+if(!S.services.length)return`<h1>数量</h1><div class="warn">データがありません。ホームから登録を始めてください。</div><button class="p" data-a="goadd">手入力で登録</button><button class="p2" data-a="gocsv">CSVを取り込む</button>`;
 const V=valuate(S);
-return`<h1>保有数量${S.asOf?"（基準日 "+fdate(S.asOf)+"）":""}</h1><p class="sub">売買や報酬で数量が変わったら、数字を直してください。入力欄を離れると保存されます。</p>
+return`${toastHtml()}<h1>保有数量${S.asOf?"（基準日 "+fdate(S.asOf)+"）":""}</h1><p class="sub">売買や報酬で数量が変わったら、数字を直してください。入力欄を離れると保存されます。</p>
+<div class="two" style="margin:0 0 14px"><button data-a="goadd">保有を追加</button><button data-a="gocsv">CSV</button></div>
 ${S.services.map(s=>{const h=S.holdings[s.id]||{},ids=Object.keys(h),rest=S.coins.filter(c=>!(c.id in h));
 return`<div class="card" style="margin-bottom:14px"><div class="hd"><span>${esc(s.name)}</span><span id="ss-${s.id}">${yen(V.svc[s.id].value)}円</span></div>
-${ids.map(c=>`<div class="qrow"><label for="q-${s.id}-${c}">${esc(cn(c))}</label><input id="q-${s.id}-${c}" class="q" data-s="${s.id}" data-c="${c}" type="text" inputmode="decimal" autocomplete="off" placeholder="未入力" value="${h[c]==null?"":qs(h[c])}"><button class="x" data-a="rm" data-s="${s.id}" data-c="${c}" aria-label="${esc(cn(c))}を削除">${armed==="rm-"+s.id+"-"+c?"削除":"×"}</button></div>`).join("")}
+${ids.map(c=>`<div class="qrow"><label for="q-${s.id}-${c}">${esc(cn(c))}</label><input id="q-${s.id}-${c}" class="q" data-s="${s.id}" data-c="${c}" type="text" inputmode="decimal" autocomplete="off" placeholder="未入力" value="${h[c]==null?"":esc(qdec(h[c]))}"><button class="x" data-a="rm" data-s="${s.id}" data-c="${c}" aria-label="${esc(cn(c))}を削除">${armed==="rm-"+s.id+"-"+c?"削除":"×"}</button></div>`).join("")}
 ${rest.length?`<div class="add"><select id="ad-${s.id}" aria-label="追加する銘柄">${rest.map(c=>`<option value="${c.id}">${esc(cn(c.id))}</option>`).join("")}</select><button class="s" data-a="addh" data-s="${s.id}">追加</button></div>`:""}</div>`}).join("")}`}
+
+function crHtml(){af.res=af.q.trim()?findCoins(S,af.q):[];const q=af.q.trim();
+if(!q)return'<div class="sub">名前か略称を入力すると、候補が出ます。</div>';
+return(af.res.length?`<div class="cand">${af.res.map((r,i)=>`<button data-a="pickc" data-i="${i}">${esc(r.name)}（${esc(r.sym)}）${r.existingId?'<span class="tag">登録済み</span>':""}${r.cg?"":'<span class="tag w">価格IDなし</span>'}</button>`).join("")}</div>`:'<div class="sub">候補が見つかりませんでした。</div>')
++`<div class="cand" style="margin-top:8px"><button class="s" data-a="onl">CoinGeckoで検索する</button>${af.online?af.online.map((r,i)=>`<button data-a="pickon" data-i="${i}">${esc(r.name)}（${esc(String(r.sym).toUpperCase())}）・時価総額順位 ${r.rank||"圏外"}・ID: ${esc(r.id)}</button>`).join(""):""}${af.onlineMsg?`<div class="sub">${esc(af.onlineMsg)}</div>`:""}<button class="s" data-a="nopr">「${esc(q)}」を価格IDなしで追加（価格は手入力）</button></div>`}
+function selHtml(){return af.sel?`<div class="sel">選択中：${esc(af.sel.name)}（${esc(af.sel.sym)}）${af.sel.cg?"・価格ID: "+esc(af.sel.cg):"・価格IDなし（価格は手入力）"}</div>`:'<div class="sub">銘柄がまだ選ばれていません。</div>'}
+function grpHtml(){const ex=S.services.find(s=>norm(s.name)===norm(af.svc));return`<div class="seg" role="group" aria-label="区分">${["exchange","lending"].map(g=>`<button data-a="grp" data-g="${g}" aria-pressed="${af.group===g}" ${ex&&ex.group!==g?"disabled":""}>${GROUPS[g]}</button>`).join("")}</div>${ex?`<div class="sub">登録済みのサービスです（${GROUPS[ex.group]}）。</div>`:""}`}
+function addView(){
+return`${toastHtml()}<h1>保有を追加</h1><p class="sub">サービスごとに、持っている銘柄と数量を登録します。同じサービス・銘柄を入れ直すと、数量が上書きされます。</p>
+<div class="card stack"><div><div class="lbl">サービス名（自由に入力）</div><input id="af-svc" list="svl" placeholder="例：bitFlyer、マイ取引所" autocomplete="off" value="${esc(af.svc)}"><datalist id="svl">${S.services.map(s=>`<option value="${esc(s.name)}">`).join("")}</datalist></div>
+<div id="grpseg">${grpHtml()}</div>
+<div><div class="lbl">銘柄（名前や略称で検索）</div><input id="af-q" placeholder="例：ビットコイン、BTC" autocomplete="off" autocapitalize="off" value="${esc(af.q)}"></div>
+<div id="cr">${crHtml()}</div><div id="asel">${selHtml()}</div>
+<div><div class="lbl">保有数量</div><input id="af-qty" inputmode="decimal" autocomplete="off" placeholder="例：0.05" value="${esc(af.qty)}"></div>
+<button class="p" style="margin-top:4px" data-a="afadd">追加</button></div>
+<h2>登録済み</h2>${S.services.length?`<div class="card">${S.services.map(s=>`<div class="row"><span>${esc(s.name)}<span class="tag">${GROUPS[s.group]}</span></span><span class="amt">${Object.keys(S.holdings[s.id]||{}).length}銘柄</span></div>`).join("")}</div>`:'<div class="sub">まだありません。</div>'}
+<button class="p" data-a="afdone">${S.services.length?"完了してホームへ":"ホームへ戻る"}</button>`}
+
+function pvList(items,cls){return`<div class="card" style="margin-top:6px">${items.map(it=>{const nm=esc(it.svcName)+" / "+esc(it.coinLabel);let det="";
+if(it.kind==="add")det=it.newDec==null?"新規・数量は未入力":"新規："+esc(it.newDec);else if(it.kind==="change")det=esc(it.oldDec==null?"未入力":it.oldDec)+" → "+esc(it.newDec);else if(it.kind==="same"||it.kind==="keep")det=it.kind==="keep"?esc(it.msg):"変更なし："+esc(it.newDec==null?"未入力":it.newDec);else det=esc(it.msg);
+return`<div class="pv ${cls||""}"><b>${it.line}行目</b>　${nm}<small>${det}</small></div>`}).join("")}</div>`}
+function csvView(){
+const p=cs.plan;let pv="";
+if(p){if(p.fatal)pv=`<div class="warn" role="alert">${esc(p.fatal)}</div>`;
+else{const c=p.counts,add=p.items.filter(i=>i.kind==="add"),chg=p.items.filter(i=>i.kind==="change"),same=p.items.filter(i=>i.kind==="same"||i.kind==="keep"),er=p.items.filter(i=>i.kind==="error");const n=c.add+c.change;
+pv=`<h2>取り込み内容の確認</h2><div class="cnt"><span>新規追加 ${c.add}</span><span>数量の変更 ${c.change}</span><span>変更なし ${c.same+c.keep}</span><span>エラー ${c.error}</span></div>
+${p.newServices.length?`<div class="sub">新しく作るサービス：${esc(p.newServices.join("、"))}</div>`:""}
+${p.newCoins.length?`<div class="sub">新しく作る銘柄：${esc(p.newCoins.map(x=>x.sym+(x.noPrice?"（価格IDなし）":"")).join("、"))}</div>`:""}
+${p.newCoins.some(x=>x.noPrice)?'<div class="warn">「価格IDなし」の銘柄は、価格を自動取得できません。綴りが正しいか確認してください。正しければ、反映後に設定で円単価を入力できます。</div>':""}
+${er.length?`<h2>エラー（反映されません）</h2>${pvList(er,"er")}`:""}
+${add.length?`<h2>新規追加</h2>${pvList(add)}`:""}${chg.length?`<h2>数量の変更</h2>${pvList(chg)}`:""}
+${same.length?`<details class="card" style="margin-top:12px"><summary>変更なし ${same.length}件</summary>${pvList(same)}</details>`:""}
+${n?`<p class="sub">反映すると、同じサービス・銘柄の数量は置き換わります（加算ではありません）。CSVにない保有データは、そのまま残ります。</p>`:""}
+<button class="p" data-a="csvapply" ${n?"":"disabled"}>${n?(c.error?"エラー以外の"+n+"件を反映":n+"件を反映")+"":"反映する内容がありません"}</button><button class="p2" data-a="csvcancel">やめる</button>`}}
+return`${toastHtml()}<h1>CSVの取り込みと書き出し</h1>
+<div class="card stack"><div><b>取り込み</b></div><div class="sub">列は「サービス名,区分,銘柄,数量」です。区分は「取引所」か「レンディング」。銘柄は、BTCのような略称か、ビットコインのような名前で書けます。数量が空欄なら「未入力」、0は「0枚」として区別します。ファイルの中身はこの端末の中で処理し、送信しません。</div>
+<button data-a="sampledl">見本CSVをダウンロード（架空のデータ）</button><button class="s" data-a="samplecp">見本CSVをコピー</button>
+<input id="csvf" type="file" accept=".csv,text/csv,text/plain,.txt" aria-label="CSVファイル">
+<textarea id="csvt" placeholder="CSVの中身をここに貼り付けてもOK" aria-label="CSVの内容">${esc(cs.text)}</textarea>
+<button class="p" style="margin-top:0" data-a="csvprev">内容を確認</button></div>
+${pv}
+<h2>書き出し</h2><div class="card stack"><div class="sub">いまの保有データを、同じ形式のCSVにします。他の端末への移行や、表計算での編集に使えます。</div>
+<textarea id="csvx" readonly aria-label="書き出すCSV">${esc(exportCSV(S))}</textarea><button data-a="csvdl" ${S.services.length?"":"disabled"}>CSVをダウンロード</button><button class="s" data-a="csvcp">CSVをコピー</button><div class="sub">ダウンロードできない場合は、コピーしてメモなどに貼ってください。</div></div>`}
 
 function history(){
 const h=histSel&&S.history.find(x=>x.date===histSel);
@@ -199,55 +376,92 @@ ${rs.length?`<div class="card" style="margin-top:8px">${rs.map(r=>{const df=hist
 return`<button class="hrow" data-a="hopen" data-d="${r.date}"><span><b>${fdate(r.date)}</b><br><span class="sub">${df?`前回比 <span class="${df.amount>0?"up":df.amount<0?"down":""}">${sg}${yen(Math.abs(df.amount))}円</span>${df.caution?"（参考値）":""}`:"最初の記録"}${r.excluded.length?"・一部除外":""}</span></span><span class="amt">${yen(r.total)}円</span></button>`}).join("")}</div><p class="sub">日付を押すと、内訳を確認できます。</p>`:'<p class="sub">まだ記録がありません。ホーム画面で価格の更新に成功すると、最初の記録が保存されます。</p>'}`}
 
 function settings(){
-return`${toast?`<div class="toast" role="status">${esc(toast)}</div>`:""}<h1>銘柄と価格</h1><p class="sub">価格は、CoinGeckoのIDで自動取得します。IDを空にした銘柄、または自動取得できない銘柄は、円単価を手入力できます。自動取得に成功すると、手入力より新しい自動の価格が使われます。</p>
+const used=new Set();for(const s in S.holdings)for(const c in S.holdings[s])used.add(c);
+return`${toastHtml()}<h1>保有データ</h1><div class="card stack"><button data-a="goadd">保有を追加（手入力）</button><button data-a="gocsv">CSVの取り込み・書き出し</button></div>
+<h2>銘柄と価格</h2><p class="sub">価格は、CoinGeckoのIDで自動取得します。IDが空の銘柄や、自動取得できない銘柄は、円単価を手入力できます。自動取得に成功すると、手入力より新しい自動の価格が使われます。</p>
 <div class="card">${S.coins.map(c=>{const p=S.prices[c.id],cs=cand[c.id];return`<div class="cb"><input data-f="cname" data-c="${c.id}" value="${esc(c.name)}" aria-label="銘柄名"><div class="two2"><div><div class="lbl">CoinGecko ID</div><input data-f="cg" data-c="${c.id}" value="${esc(c.cg||"")}" placeholder="空欄＝手入力のみ" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="${esc(c.sym)}のCoinGecko ID"></div><div><div class="lbl">円単価（手入力）</div><input data-f="mp" data-c="${c.id}" inputmode="decimal" autocomplete="off" placeholder="例：0.013" value="${p&&p.src==="manual"?esc(String(p.jpy)):""}" aria-label="${esc(c.sym)}の円単価"></div></div>
 <div class="sub">${esc(c.sym)}・現在の価格：${p?pf(p.jpy)+"円（"+(p.src==="manual"?"手入力":"自動取得")+"、"+jstTime(p.at)+"）":"なし"}</div>
-<button class="s" data-a="srch" data-c="${c.id}">IDの候補を検索</button>
+<button class="s" data-a="srch" data-c="${c.id}">IDの候補を検索</button>${used.has(c.id)?"":`<button class="s dg" data-a="cdel" data-c="${c.id}">${armed==="cd-"+c.id?"もう一度押すと削除":"この銘柄を削除"}</button>`}
 ${candMsg[c.id]?`<div class="sub">${esc(candMsg[c.id])}</div>`:""}${cs?`<div class="cand">${cs.length?cs.map(x=>`<button data-a="pick" data-c="${c.id}" data-id="${esc(x.id)}">${esc(x.name)}（${esc(String(x.sym).toUpperCase())}）・時価総額順位 ${x.rank||"圏外"}・ID: ${esc(x.id)}</button>`).join(""):'<div class="sub">候補が見つかりませんでした</div>'}</div>`:""}</div>`}).join("")||'<div class="stack sub">銘柄がありません</div>'}</div>
-<h2>銘柄を追加</h2><div class="card stack"><input id="nc-sym" placeholder="記号（例：DOGE）" autocapitalize="characters"><input id="nc-name" placeholder="名前（例：ドージコイン）"><input id="nc-cg" placeholder="CoinGecko ID（空欄なら手入力のみ）" autocapitalize="off" autocorrect="off" spellcheck="false"><button data-a="addc">追加</button></div>
-<h2>サービス</h2><div class="card">${S.services.map(s=>`<div class="srow"><input data-f="sname" data-s="${s.id}" value="${esc(s.name)}" aria-label="サービス名"><span class="sub">${GROUPS[s.group]}</span></div>`).join("")||'<div class="stack sub">サービスがありません</div>'}</div>
-<div class="card stack" style="margin-top:10px"><input id="ns-name" placeholder="サービス名" aria-label="新しいサービス名"><select id="ns-g" aria-label="種類"><option value="exchange">取引所</option><option value="lending">レンディング</option></select><button data-a="adds">サービスを追加</button></div>
-<h2>データの取り込み</h2><div class="card stack"><div class="sub">初期データのJSONを貼り付けるか、ファイルを選んで取り込みます。サービス・銘柄・数量が置き換わります。保存済みの履歴と取得済みの価格は残ります。</div><textarea id="rt" placeholder="ここに貼り付け">${esc(impText)}</textarea><input id="rf" type="file" accept=".json,application/json,text/plain"><button class="dg" data-a="restore">${armed==="res"?"もう一度押すと、置き換えて取り込み":"取り込む"}</button><div id="rm" class="sub" role="status"></div></div>
+<h2>サービス</h2><div class="card">${S.services.map(s=>`<div class="srow"><input data-f="sname" data-s="${s.id}" value="${esc(s.name)}" aria-label="サービス名"><select data-f="sgrp" data-s="${s.id}" aria-label="区分"><option value="exchange" ${s.group==="exchange"?"selected":""}>取引所</option><option value="lending" ${s.group==="lending"?"selected":""}>レンディング</option></select><div class="sx"><span class="sub">${Object.keys(S.holdings[s.id]||{}).length}銘柄</span><button class="s dg" data-a="sdel" data-s="${s.id}">${armed==="sd-"+s.id?"もう一度押すと、保有データごと削除":"削除"}</button></div></div>`).join("")||'<div class="stack sub">サービスがありません</div>'}</div>
+<h2>データの取り込み（JSON）</h2><div class="card stack"><div class="sub">バックアップのJSONを貼り付けるか、ファイルを選んで取り込みます。サービス・銘柄・数量が置き換わります。保存済みの履歴と取得済みの価格は残ります。</div><textarea id="rt" placeholder="ここに貼り付け">${esc(impText)}</textarea><input id="rf" type="file" accept=".json,application/json,text/plain"><button class="dg" data-a="restore">${armed==="res"?"もう一度押すと、置き換えて取り込み":"取り込む"}</button><div id="rm" class="sub" role="status"></div></div>
 <h2>バックアップ</h2><div class="card stack"><div class="sub">数量・価格・履歴をコピーして、自分だけが見られる場所に保管してください。</div><textarea id="bt" readonly>${esc(JSON.stringify(S,null,2))}</textarea><button data-a="copy">コピー</button></div>
-<h2>CoinGecko APIキー（任意）</h2><div class="card stack"><div class="sub">通常は不要です。CoinGeckoが無料でもキーを求めるようになった場合だけ、Demoキーをここに入力します。この端末にだけ保存され、バックアップには含まれません。</div><input id="ak" type="password" autocomplete="off" autocapitalize="off" placeholder="空欄でOK" value="${esc(apiKey())}" aria-label="APIキー"></div>
-<p class="foot">価格データ：<a href="https://www.coingecko.com/" target="_blank" rel="noopener">CoinGecko</a>。データはこの端末のブラウザ内に保存され、価格の取得時に保有数量が送られることはありません（送るのは銘柄のIDだけです）。</p>`}
+<h2>CoinGecko APIキー（任意）</h2><div class="card stack"><div class="sub">通常は不要です。ご自身のDemoキーをお持ちの場合や、無料でもキーが必要になった場合だけ入力します。この端末にだけ保存され、バックアップには含まれません。</div><input id="ak" type="password" autocomplete="off" autocapitalize="off" placeholder="空欄でOK" value="${esc(apiKey())}" aria-label="APIキー"></div>
+<h2>このアプリについて</h2><div class="card stack"><div class="sub"><b>目的と免責：</b>各サービスに預けた仮想通貨の数量から、日本円の評価額を合計して表示するメモです。投資の助言ではありません。価格はCoinGeckoが提供する参考値で、正確さや即時性は保証されません。仮想通貨の価格は大きく変動します。実際の残高や評価額は、各サービスの画面で確認してください。</div>
+<div class="sub"><b>データの扱い：</b>数量・履歴・設定は、この端末のブラウザの中にだけ保存され、このアプリの運営者を含め誰にも送られません。価格の取得時にCoinGeckoへ送るのは、銘柄のIDだけです（接続元のIPアドレスは相手に伝わります）。ブラウザのデータを消す、または別のブラウザやホーム画面のアプリで開くと、データは見えなくなります。Safariとホーム画面のアプリでは保存場所が別です。</div>
+${ATTR}</div>
+<h2>この端末のデータを削除</h2><div class="card stack"><div class="sub">共有の端末などで使った場合に、保存したデータをすべて消します。先にバックアップを取ってください。</div><button class="dg" data-a="wipe">${armed==="wipe"?"もう一度押すと、すべて削除":"すべて削除"}</button></div>`}
 
-function render(keep){const a=$("#app");a.innerHTML=view==="home"?home():view==="qty"?qty():view==="history"?history():settings();
-$("#tabs").innerHTML=[["home","ホーム"],["history","履歴"],["qty","数量"],["settings","設定"]].map(([k,l])=>`<button data-tab="${k}" ${view===k?'aria-current="page"':""}>${l}</button>`).join("");
-if(!keep)window.scrollTo(0,0)}
+function render(keep){const a=$("#app");a.innerHTML=view==="home"?home():view==="qty"?qty():view==="history"?history():view==="add"?addView():view==="csv"?csvView():settings();
+const tab=view==="add"||view==="csv"?"qty":view;
+$("#tabs").innerHTML=[["home","ホーム"],["history","履歴"],["qty","数量"],["settings","設定"]].map(([k,l])=>`<button data-tab="${k}" ${tab===k?'aria-current="page"':""}>${l}</button>`).join("");
+if(view!=="home")toast="";if(!keep)window.scrollTo(0,0)}
 
 async function refreshPrices(){if(busy||!S.services.length)return;busy=true;render(true);
 await fetchPrices(S,(u,o)=>fetch(u,o),nowIso(),apiKey());busy=false;persist();render(true)}
+function download(name,text,mime){const b=new Blob(["﻿"+text],{type:mime||"text/csv;charset=utf-8"}),u=URL.createObjectURL(b),a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(u);a.remove()},1500)}
+async function copyText(text,btn){try{await navigator.clipboard.writeText(text)}catch(_){const x=document.createElement("textarea");x.value=text;document.body.appendChild(x);x.select();try{document.execCommand("copy")}catch(e){}x.remove()}
+if(btn){const o=btn.textContent;btn.textContent="コピーしました";setTimeout(()=>{btn.textContent=o},1500)}}
+function goView(v){view=v;histSel=null;armed="";render()}
 
 document.addEventListener("click",async e=>{const t=e.target.closest("[data-tab],[data-a]");if(!t)return;
-if(t.dataset.tab){view=t.dataset.tab;histSel=null;armed="";toast="";render();return}
+if(t.dataset.tab){toast="";goView(t.dataset.tab);return}
 const a=t.dataset.a,s=t.dataset.s,c=t.dataset.c;
 if(a==="price")refreshPrices();
+else if(a==="goadd"){toast="";goView("add")}
+else if(a==="gocsv"){toast="";cs={text:"",plan:null};goView("csv")}
+else if(a==="grp"){af.group=t.dataset.g;$("#grpseg").innerHTML=grpHtml()}
+else if(a==="pickc"){const r=af.res[+t.dataset.i];if(r){af.sel={existingId:r.existingId,sym:r.sym,name:r.name,cg:r.cg};$("#asel").innerHTML=selHtml();$("#af-qty").focus()}}
+else if(a==="pickon"){const r=af.online&&af.online[+t.dataset.i];if(r){af.sel={existingId:null,sym:String(r.sym).toUpperCase(),name:r.name,cg:r.id};$("#asel").innerHTML=selHtml();$("#af-qty").focus()}}
+else if(a==="nopr"){const q=af.q.trim();if(q){af.sel={existingId:null,sym:q.toUpperCase(),name:q,cg:null};$("#asel").innerHTML=selHtml();$("#af-qty").focus()}}
+else if(a==="onl"){const q=af.q.trim();if(!q)return;af.onlineMsg="検索中…";af.online=null;$("#cr").innerHTML=crHtml();
+try{af.online=await searchCoins((u,o)=>fetch(u,o),q,apiKey());af.onlineMsg=af.online.length?"同じ記号の別の銘柄が混ざるため、名前と順位を見て選んでください":"CoinGeckoにも候補がありませんでした"}catch(err){af.online=null;af.onlineMsg=err&&err.known?err.message:"検索できませんでした（通信を確認してください）"}
+if(view==="add")$("#cr").innerHTML=crHtml()}
+else if(a==="afadd"){const r=addHolding(S,{svcName:af.svc,group:af.group,pick:af.sel,qtyStr:af.qty});
+if(!r.ok){toast=r.err;render(true);return}
+afterChange();toast=`${r.svc.name} に ${r.coin.sym} ${r.dec} を${r.kind==="add"?"追加":"更新"}しました`;af.q="";af.sel=null;af.qty="";af.res=[];af.online=null;af.onlineMsg="";render(true);const q=$("#af-q");if(q)q.focus()}
+else if(a==="afdone"){toast=S.services.length?"登録しました。価格を取得しています…":"";view="home";render();if(S.services.length)refreshPrices()}
+else if(a==="sampledl"){download("holdings-sample.csv",SAMPLE_CSV);toast="見本CSVを保存しました。ダウンロードできない場合は「コピー」を使ってください";render(true)}
+else if(a==="samplecp")copyText(SAMPLE_CSV,t);
+else if(a==="csvdl"){download("holdings-"+todayJ()+".csv",exportCSV(S));toast="CSVを書き出しました。保存先は、iPhoneの「ファイル」アプリです";render(true)}
+else if(a==="csvcp")copyText(exportCSV(S),t);
+else if(a==="csvprev"){cs.text=$("#csvt").value;cs.plan=planImport(S,cs.text);render(true)}
+else if(a==="csvcancel"){cs={text:"",plan:null};render(true)}
+else if(a==="csvapply"){if(!cs.plan||cs.plan.fatal)return;const n=applyPlan(S,cs.plan);afterChange();const e2=cs.plan.counts.error;cs={text:"",plan:null};toast=n+"件を反映しました"+(e2?`（エラー${e2}件は反映していません）`:"");view="home";render();refreshPrices()}
 else if(a==="hopen"){histSel=t.dataset.d;armed="";render()}
 else if(a==="hback"){histSel=null;armed="";render()}
 else if(a==="hdel"){const k="hd-"+t.dataset.d;if(armed!==k){armed=k;render(true)}else{S.history=S.history.filter(h=>h.date!==t.dataset.d);armed="";histSel=null;persist();render()}}
-else if(a==="rm"){const k="rm-"+s+"-"+c;if(armed!==k){armed=k;render(true)}else{delete S.holdings[s][c];S.asOf=todayJ();armed="";touchToday(S,nowIso());persist();render(true)}}
+else if(a==="rm"){const k="rm-"+s+"-"+c;if(armed!==k){armed=k;render(true)}else{delete S.holdings[s][c];armed="";afterChange();render(true)}}
 else if(a==="addh"){const sel=$("#ad-"+s);if(!sel)return;(S.holdings[s]=S.holdings[s]||{})[sel.value]=null;persist();render(true)}
-else if(a==="addc"){const sym=$("#nc-sym").value.trim().toUpperCase(),name=$("#nc-name").value.trim()||sym,cg=$("#nc-cg").value.trim();if(!sym)return $("#nc-sym").focus();if(cg&&!CGRE.test(cg)){toast="CoinGecko IDの形式が正しくありません";return render(true)}
-S.coins.push({id:"c"+Date.now().toString(36),sym,name,cg:cg||null});persist();toast=sym+"を追加しました";render(true)}
-else if(a==="adds"){const n=$("#ns-name").value.trim();if(!n)return $("#ns-name").focus();S.services.push({id:"s"+Date.now().toString(36),name:n,group:$("#ns-g").value});persist();render(true)}
+else if(a==="sdel"){const k="sd-"+s;if(armed!==k){armed=k;render(true)}else{S.services=S.services.filter(x=>x.id!==s);delete S.holdings[s];armed="";afterChange();render(true)}}
+else if(a==="cdel"){const k="cd-"+c;if(armed!==k){armed=k;render(true)}else{S.coins=S.coins.filter(x=>x.id!==c);delete S.prices[c];armed="";persist();render(true)}}
+else if(a==="wipe"){if(armed!=="wipe"){armed="wipe";render(true)}else{armed="";S=clone(EMPTY);try{ST.removeItem(KEY);ST.removeItem(AK)}catch(_){}af={svc:"",group:"exchange",q:"",sel:null,qty:"",res:[],online:null,onlineMsg:""};cs={text:"",plan:null};toast="";view="home";render()}}
 else if(a==="srch"){const co=S.coins.find(x=>x.id===c);candMsg[c]="検索中…";cand[c]=null;render(true);
 try{cand[c]=await searchCoins((u,o)=>fetch(u,o),co.sym,apiKey());candMsg[c]="同じ記号の別の銘柄が混ざるため、名前と順位を見て選んでください"}catch(err){cand[c]=null;candMsg[c]=err&&err.known?err.message:"検索できませんでした（通信を確認してください）"}render(true)}
 else if(a==="pick"){const co=S.coins.find(x=>x.id===c);co.cg=t.dataset.id;cand[c]=null;candMsg[c]="";persist();toast=co.sym+"のIDを設定しました。ホームで「価格を更新」を押してください";render(true)}
-else if(a==="copy"){const x=$("#bt");try{await navigator.clipboard.writeText(x.value)}catch(_){x.select();document.execCommand("copy")}t.textContent="コピーしました";setTimeout(()=>{t.textContent="コピー"},1500)}
+else if(a==="copy"){copyText($("#bt").value,t)}
 else if(a==="restore"){const txt=$("#rt").value;impText=txt;if(armed!=="res"){armed="res";render(true);return}armed="";
 try{const n=check(JSON.parse(txt));if(!n.history.length)n.history=S.history;for(const k in S.prices)if(!n.prices[k]&&n.coins.some(x=>x.id===k))n.prices[k]=S.prices[k];if(!n.fetch)n.fetch=S.fetch;S=n;persist();impText="";toast="データを取り込みました";view="home";render();refreshPrices()}catch(err){render(true);$("#rm").textContent="取り込めません："+err.message}}});
-document.addEventListener("change",e=>{const t=e.target;
+document.addEventListener("input",e=>{const t=e.target;
+if(t.id==="af-svc"){af.svc=t.value;const ex=S.services.find(s=>norm(s.name)===norm(af.svc));if(ex)af.group=ex.group;$("#grpseg").innerHTML=grpHtml()}
+else if(t.id==="af-q"){af.q=t.value;af.online=null;af.onlineMsg="";$("#cr").innerHTML=crHtml()}
+else if(t.id==="af-qty")af.qty=t.value;
+else if(t.id==="csvt")cs.text=t.value});
+document.addEventListener("change",async e=>{const t=e.target;
 if(t.classList.contains("q")){const p=parseQty(t.value);if(!p.ok){toast="数字として読めません。数量を確認してください";render(true);return}
-(S.holdings[t.dataset.s]=S.holdings[t.dataset.s]||{})[t.dataset.c]=p.v;S.asOf=todayJ();touchToday(S,nowIso());persist();t.value=p.v==null?"":qs(p.v);const V=valuate(S),el=$("#ss-"+t.dataset.s);if(el)el.textContent=yen(V.svc[t.dataset.s].value)+"円"}
+(S.holdings[t.dataset.s]=S.holdings[t.dataset.s]||{})[t.dataset.c]=p.v;afterChange();t.value=p.dec==null?"":p.dec;const V=valuate(S),el=$("#ss-"+t.dataset.s);if(el)el.textContent=yen(V.svc[t.dataset.s].value)+"円"}
 else if(t.dataset.f==="cname"){const c=S.coins.find(x=>x.id===t.dataset.c);if(c&&t.value.trim()){c.name=t.value.trim();persist()}}
 else if(t.dataset.f==="cg"){const c=S.coins.find(x=>x.id===t.dataset.c),v=t.value.trim();if(!c)return;if(v&&!CGRE.test(v)){t.value=c.cg||"";toast="IDの形式が正しくありません";render(true);return}c.cg=v||null;persist()}
-else if(t.dataset.f==="mp"){const c=S.coins.find(x=>x.id===t.dataset.c);if(!c)return;const p=parseQty(t.value);
-if(!p.ok||(p.v!=null&&p.v<=0)){toast="円単価は、0より大きい数字で入力してください";render(true);return}
-if(p.v==null){if(S.prices[c.id]&&S.prices[c.id].src==="manual")delete S.prices[c.id]}else S.prices[c.id]={jpy:p.v,at:nowIso(),src:"manual"};
-touchToday(S,nowIso());persist();toast=p.v==null?c.sym+"の手入力価格を消しました":c.sym+"の円単価を保存しました";render(true)}
+else if(t.dataset.f==="mp"){const c=S.coins.find(x=>x.id===t.dataset.c);if(!c)return;const p=parseQty(t.value),n=p.dec==null?null:Number(p.dec);
+if(!p.ok||(n!=null&&!(n>0))){toast="円単価は、0より大きい数字で入力してください";render(true);return}
+if(n==null){if(S.prices[c.id]&&S.prices[c.id].src==="manual")delete S.prices[c.id]}else S.prices[c.id]={jpy:n,at:nowIso(),src:"manual"};
+touchToday(S,nowIso());persist();toast=n==null?c.sym+"の手入力価格を消しました":c.sym+"の円単価を保存しました";render(true)}
 else if(t.dataset.f==="sname"){const s=S.services.find(x=>x.id===t.dataset.s);if(s&&t.value.trim()){s.name=t.value.trim();persist()}}
+else if(t.dataset.f==="sgrp"){const s=S.services.find(x=>x.id===t.dataset.s);if(s&&GROUPS[t.value]){s.group=t.value;afterChange();render(true)}}
 else if(t.id==="ak"){try{ST.setItem(AK,t.value.trim())}catch(_){}}
+else if(t.id==="csvf"&&t.files[0]){const f=t.files[0];let buf;try{buf=await f.arrayBuffer()}catch(_){toast="ファイルを読めませんでした";render(true);return}
+const txt=decodeBytes(buf);if(txt==null){toast="文字コードを判別できませんでした。UTF-8かShift_JISで保存してください";render(true);return}
+cs.text=txt;cs.plan=planImport(S,txt);render(true)}
 else if(t.id==="rf"&&t.files[0]){const fr=new FileReader();fr.onload=()=>{$("#rt").value=String(fr.result);impText=$("#rt").value};fr.readAsText(t.files[0])}});
 document.addEventListener("focusin",e=>{const t=e.target;if(t.classList&&t.classList.contains("q"))setTimeout(()=>{try{t.select()}catch(_){}},0)});
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&view==="home"&&S.services.length&&(!S.fetch||!S.fetch.tried||Date.now()-Date.parse(S.fetch.tried)>300000))refreshPrices()});
