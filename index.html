@@ -76,6 +76,11 @@ a{color:var(--acc)}
 .seg button{min-height:46px}
 .seg button[aria-pressed="true"]{background:var(--acc);color:var(--accink);border-color:var(--acc);font-weight:700}
 .sel{background:var(--bar);border-radius:10px;padding:8px 12px;font-size:15px}
+.seg.s3{grid-template-columns:repeat(3,1fr)}
+.cv{display:block;width:100%;height:auto;margin-top:6px;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.cg{stroke:var(--line);stroke-width:1}.ct{fill:var(--mute);font-size:9.5px;font-variant-numeric:tabular-nums}
+.cl{stroke:var(--acc);stroke-width:2.2;stroke-linecap:round}.cd{fill:var(--card);stroke:var(--acc);stroke-width:2}.cd.on{fill:var(--acc)}
+.cread{margin-top:10px}.cread b{font-size:20px;font-variant-numeric:tabular-nums}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .chips button{min-height:46px;padding:0 14px;font-size:15px;font-weight:500}
 .chips button[aria-pressed="true"]{background:var(--acc);color:var(--accink);border-color:var(--acc);font-weight:700}
@@ -159,8 +164,19 @@ const rec={date:jstDate(now),at:now,total:r(V.total),exchange:r(V.grp.exchange),
 svc:d.services.map(s=>[s.name,r(V.svc[s.id].value)]),coin:d.coins.filter(c=>V.coin[c.id].qty>0).map(c=>[c.sym,r(V.coin[c.id].value)])};
 d.history=d.history.filter(h=>h.date!==rec.date);d.history.push(rec);d.history.sort((a,b)=>a.date<b.date?-1:1);return rec}
 function touchToday(d,now){if(d.history.some(h=>h.date===jstDate(now)))snapshot(d,valuate(d),now)}
+function dayAdd(t,n){const[y,m,d]=t.split("-").map(Number);return new Date(Date.UTC(y,m-1,d+n)).toISOString().slice(0,10)}
+function dayDiff(a,b){const f=t=>{const[y,m,d]=t.split("-").map(Number);return Date.UTC(y,m-1,d)};return Math.round((f(b)-f(a))/864e5)}
+const mdOf=t=>{const[,m,d]=t.split("-").map(Number);return m+"/"+d};
 function histDiff(d,date,total,excluded){const p=d.history.filter(h=>h.date<date).pop();if(!p)return null;const a=total-p.total;
-return{amount:a,pct:p.total?a/p.total*100:null,prevDate:p.date,caution:[...excluded].sort().join()!==[...p.excluded].sort().join()}}
+return{amount:a,pct:p.total?a/p.total*100:null,prevDate:p.date,prevIsYesterday:p.date===dayAdd(date,-1),caution:[...excluded].sort().join()!==[...p.excluded].sort().join()}}
+function chartSeries(d,range,today){const m=new Map();for(const h of(d.history||[]))if(h&&/^\d{4}-\d{2}-\d{2}$/.test(h.date)&&Number.isFinite(h.total))m.set(h.date,h.total);
+const all=[...m.entries()].sort((a,b)=>a[0]<b[0]?-1:1).map(([date,total])=>({date,total}));
+if(!all.length)return{all,points:[],start:today,end:today,span:0};
+const last=all[all.length-1].date,end=today>last?today:last;
+const start=range==="7"?dayAdd(today,-6):range==="30"?dayAdd(today,-29):all[0].date;
+const e2=range==="all"?end:(today>last?today:last);
+const points=all.filter(x=>x.date>=start&&x.date<=e2).map(x=>({...x,x:dayDiff(start,x.date)}));
+return{all,points,start,end:e2,span:Math.max(0,dayDiff(start,e2))}}
 const KE=m=>{const e=new Error(m);e.known=true;return e};
 async function fetchPrices(d,f,now,key){const ids=[...new Set(d.coins.filter(c=>c.cg).map(c=>c.cg))];
 if(!ids.length){applyFailure(d,now,"価格を取得する銘柄のIDがありません");return false}
@@ -281,9 +297,36 @@ const syms=ids=>ids.map(i=>S.coins.find(c=>c.id===i).sym);
 const ATTR='<p class="attr">Powered by <a href="https://www.coingecko.com/en/api/?utm_source=holdings-memo&utm_medium=referral" target="_blank" rel="noopener">CoinGecko API</a>（価格データ）</p>';
 const afterChange=()=>{S.asOf=todayJ();touchToday(S,nowIso());persist()};
 
+const cmpName=df=>df.prevIsYesterday?"前日比":"前回記録比";
 function dh(df){if(!df)return'<div class="sub">比べる前回の記録は、まだありません</div>';
 const up=df.amount>0,dn=df.amount<0,sg=up?"+":dn?"−":"±",pct=df.pct==null?"":"（"+sg+Math.abs(df.pct).toFixed(2)+"%）";
-return`<div class="diff ${up?"up":dn?"down":""}">${sg}${yen(Math.abs(df.amount))}円${pct}</div><div class="sub">${fdate(df.prevDate)}の記録からの評価額の変化です。売買や数量の修正も含みます${df.caution?"。除外している銘柄が前回と違うため、参考値です":""}</div>`}
+return`<div class="diff ${up?"up":dn?"down":""}">${sg}${yen(Math.abs(df.amount))}円${pct}</div><div class="sub"><b>${cmpName(df)}</b>（比較元：${fdate(df.prevDate)}の記録）。評価額の変化で、売買や数量の修正も含みます${df.caution?"。除外している銘柄が前回と違うため、参考値です":""}</div>`}
+let gr={range:"30",sel:null};
+const CW=340,CH=214,CL=66,CR=14,CT=22,CB=28;
+const cxp=(x,span)=>{const W=CW-CL-CR;return span?CL+10+x/span*(W-20):CL+W/2};
+function niceStep(r){const e=Math.pow(10,Math.floor(Math.log10(r))),f=r/e;return(f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10)*e}
+function chartHtml(){const cs=chartSeries(S,gr.range,todayJ()),pts=cs.points;
+const seg=`<div class="seg s3" role="group" aria-label="期間">${[["7","7日"],["30","30日"],["all","全期間"]].map(([k,l])=>`<button data-a="grange" data-r="${k}" aria-pressed="${gr.range===k}">${l}</button>`).join("")}</div>`;
+if(!cs.all.length)return`${seg}<div class="sub" style="margin-top:10px">まだ記録がありません。価格の更新に成功すると、その日の合計評価額が保存され、ここに表示されます。</div>`;
+if(!pts.length)return`${seg}<div class="sub" style="margin-top:10px">この期間（${fdate(cs.start)}〜${fdate(cs.end)}）の記録はありません。「全期間」に切り替えると、これまでの記録を見られます。</div>`;
+const sel=pts.find(x=>x.date===gr.sel)||pts[pts.length-1];
+let lo=Math.min(...pts.map(x=>x.total)),hi=Math.max(...pts.map(x=>x.total));
+if(hi-lo<1){const pad=Math.max(1000,Math.abs(hi)*0.02);lo-=pad;hi+=pad}
+const step=niceStep((hi-lo)/3);lo=Math.floor(lo/step)*step;hi=Math.ceil(hi/step)*step;if(lo<0&&pts.every(x=>x.total>=0))lo=0;
+const W=CW-CL-CR,H=CH-CT-CB,px=x=>cxp(x,cs.span),py=v=>CT+(hi-v)/(hi-lo)*H;
+const ticks=[];for(let v=lo;v<=hi+step/2;v+=step)ticks.push(v);
+const xt=[];if(cs.span===0)xt.push(0);else if(cs.span<=7)for(let i=0;i<=cs.span;i++)xt.push(i);else for(let i=0;i<=4;i++)xt.push(Math.round(i*cs.span/4));
+let g=ticks.map(v=>`<line class="cg" x1="${CL}" x2="${CW-CR}" y1="${py(v).toFixed(1)}" y2="${py(v).toFixed(1)}"/><text class="ct" x="${CL-6}" y="${(py(v)+3).toFixed(1)}" text-anchor="end">${yen(v)}</text>`).join("");
+g+=[...new Set(xt)].map(k=>`<text class="ct" x="${px(k).toFixed(1)}" y="${CH-8}" text-anchor="middle">${mdOf(dayAdd(cs.start,k))}</text>`).join("");
+let path="";for(let i=0;i<pts.length-1;i++)if(pts[i+1].x-pts[i].x===1)path+=`<line class="cl" x1="${px(pts[i].x).toFixed(1)}" y1="${py(pts[i].total).toFixed(1)}" x2="${px(pts[i+1].x).toFixed(1)}" y2="${py(pts[i+1].total).toFixed(1)}"/>`;
+const dots=pts.map(x=>`<circle class="cd${x.date===sel.date?" on":""}" cx="${px(x.x).toFixed(1)}" cy="${py(x.total).toFixed(1)}" r="${x.date===sel.date?5.5:3.4}"/>`).join("");
+const prev=cs.all.filter(x=>x.date<sel.date).pop(),a=prev?sel.total-prev.total:null;
+const dl=prev?`<span class="${a>0?"up":a<0?"down":""}">${a>0?"+":a<0?"−":"±"}${yen(Math.abs(a))}円</span>（${prev.date===dayAdd(sel.date,-1)?"前日比":"前回記録比："+mdOf(prev.date)+"の記録"}）`:"最初の記録です";
+const gaps=pts.length>1&&pts.some((x,i)=>i&&x.x-pts[i-1].x>1);
+return`${seg}<div class="cread" aria-live="polite"><b>${mdOf(sel.date)}　${yen(sel.total)}円</b><div class="sub">${dl}</div></div>
+<svg class="cv" viewBox="0 0 ${CW} ${CH}" role="img" aria-label="資産総額の推移の折れ線グラフ。点をタップすると、その日の金額が表示されます">${g}<text class="ct" x="${CL-6}" y="12" text-anchor="end">円</text>${path}${dots}<rect data-a="gplot" x="${CL-8}" y="${CT-8}" width="${W+16}" height="${H+16}" fill="transparent"/></svg>
+<div class="sub" style="font-size:12px">${pts.length===1?"記録は1日分です。記録が増えると、線でつながります。":"線でつながるのは、記録が連続した日だけです。"+(gaps?"記録のない日は空白で、補間していません。":"")}売買や数量の変更も反映されます。</div>`}
+function chartSect(){return`<h2>資産総額の推移</h2><div class="card" style="padding:12px 14px" id="chart">${chartHtml()}</div>`}
 const toastHtml=()=>toast?`<div class="toast" role="status">${esc(toast)}</div>`:"";
 
 function home(){
@@ -310,6 +353,7 @@ ${dh(df)}
 <div class="sub" style="margin-top:6px">${f&&f.okAt?"価格の取得："+jstTime(f.okAt):"価格は未取得です"}${S.asOf?"・数量の基準日："+fdate(S.asOf):""}</div>
 <button class="p" data-a="price" ${busy?"disabled":""}>${busy?"価格を取得中…":"価格を更新"}</button>
 ${bn.map(b=>`<div class="warn" role="alert">${b}</div>`).join("")}
+${chartSect()}
 <div class="two"><div class="card"><span class="sub">取引所</span><b>${yen(V.grp.exchange)}円</b></div><div class="card"><span class="sub">レンディング</span><b>${yen(V.grp.lending)}円</b></div></div>
 <h2>銘柄別</h2><div class="card">${rows.map(({c,i})=>{const st=i.status;return`<div class="row"><span>${esc(c.name)}<span class="tag">${esc(c.sym)}</span>${st==="stale"?'<span class="tag w">前回価格</span>':st==="manual"?'<span class="tag w">手入力</span>':st==="none"||st==="noid"?'<span class="tag w">価格なし</span>':""}</span><span class="amt">${i.price==null?"合計に含めず":yen(i.value)+"円"}</span><span class="s2">${i.qmiss?"数量未入力あり・":""}${qs(i.qty)} ${esc(c.sym)}</span><span class="s2">${i.price==null?"価格なし":"@"+pf(i.price)+"円"+(st==="stale"?"（"+jstTime(i.at)+"に取得）":st==="manual"?"（"+jstTime(i.at)+"に手入力）":"")}</span></div>`}).join("")}</div>
 <h2>サービス別</h2><div class="card">${S.services.map(s=>{const x=V.svc[s.id];return`<div class="row"><span>${esc(s.name)}<span class="tag">${GROUPS[s.group]}</span></span><span class="amt">${yen(x.value)}円</span>${x.excl.length?`<span class="s2" style="grid-column:1/-1">※${esc(names(x.excl))}は価格がないため含まれていません</span>`:""}</div>`}).join("")}</div>
@@ -404,7 +448,7 @@ ${notes.map(n=>`<div class="warn">${esc(n)}</div>`).join("")}
 histSel=null;const rs=[...S.history].reverse();
 return`<h1>評価額の履歴</h1><p class="sub">価格の更新に成功した日の評価額を、日本時間の日付ごとに1件保存します。同じ日に更新すると、その日の記録が新しい内容に置き換わります。</p>
 ${rs.length?`<div class="card" style="margin-top:8px">${rs.map(r=>{const df=histDiff(S,r.date,r.total,r.excluded),sg=df?(df.amount>0?"+":df.amount<0?"−":"±"):"";
-return`<button class="hrow" data-a="hopen" data-d="${r.date}"><span><b>${fdate(r.date)}</b><br><span class="sub">${df?`前回比 <span class="${df.amount>0?"up":df.amount<0?"down":""}">${sg}${yen(Math.abs(df.amount))}円</span>${df.caution?"（参考値）":""}`:"最初の記録"}${r.excluded.length?"・一部除外":""}</span></span><span class="amt">${yen(r.total)}円</span></button>`}).join("")}</div><p class="sub">日付を押すと、内訳を確認できます。</p>`:'<p class="sub">まだ記録がありません。ホーム画面で価格の更新に成功すると、最初の記録が保存されます。</p>'}`}
+return`<button class="hrow" data-a="hopen" data-d="${r.date}"><span><b>${fdate(r.date)}</b><br><span class="sub">${df?`${cmpName(df)}${df.prevIsYesterday?"":"（"+mdOf(df.prevDate)+"）"} <span class="${df.amount>0?"up":df.amount<0?"down":""}">${sg}${yen(Math.abs(df.amount))}円</span>${df.caution?"（参考値）":""}`:"最初の記録"}${r.excluded.length?"・一部除外":""}</span></span><span class="amt">${yen(r.total)}円</span></button>`}).join("")}</div><p class="sub">日付を押すと、内訳を確認できます。</p>`:'<p class="sub">まだ記録がありません。ホーム画面で価格の更新に成功すると、最初の記録が保存されます。</p>'}`}
 
 function settings(){
 const used=new Set();for(const s in S.holdings)for(const c in S.holdings[s])used.add(c);
@@ -439,6 +483,10 @@ document.addEventListener("click",async e=>{const t=e.target.closest("[data-tab]
 if(t.dataset.tab){toast="";goView(t.dataset.tab);return}
 const a=t.dataset.a,s=t.dataset.s,c=t.dataset.c;
 if(a==="price")refreshPrices();
+else if(a==="grange"){gr.range=t.dataset.r;gr.sel=null;const c=$("#chart");if(c)c.innerHTML=chartHtml()}
+else if(a==="gplot"){const cs=chartSeries(S,gr.range,todayJ());let d=t.dataset.d;
+if(!d&&cs.points.length){const sv=t.ownerSVGElement||t,r=sv.getBoundingClientRect(),X=(e.clientX-r.left)/r.width*CW,W=CW-CL-CR;let best=null,bd=1e9;for(const q of cs.points){const x=cxp(q.x,cs.span),dd=Math.abs(x-X);if(dd<bd){bd=dd;best=q}}d=best&&best.date}
+if(d){gr.sel=d;const c=$("#chart");if(c)c.innerHTML=chartHtml()}}
 else if(a==="goadd"){toast="";af=AF0();goView("add")}
 else if(a==="gocsv"){toast="";cs={text:"",plan:null};goView("csv")}
 else if(a==="grp"){af.group=t.dataset.g;af.err="";$("#grpseg").innerHTML=grpHtml()}
