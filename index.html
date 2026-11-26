@@ -331,7 +331,7 @@ return(af.res.length?`<div class="cand">${af.res.map((r,i)=>`<button data-a="pic
 +`<div class="cand" style="margin-top:8px"><button class="s" data-a="onl">CoinGeckoで検索する</button>${af.online?af.online.map((r,i)=>`<button data-a="pickon" data-i="${i}">${esc(r.name)}（${esc(String(r.sym).toUpperCase())}）・時価総額順位 ${r.rank||"圏外"}・ID: ${esc(r.id)}</button>`).join(""):""}${af.onlineMsg?`<div class="sub">${esc(af.onlineMsg)}</div>`:""}<button class="s" data-a="nopr">「${esc(q)}」を価格IDなしで追加（価格は手入力）</button></div>`}
 function selHtml(){return af.sel?`<div class="sel">選択中：${esc(af.sel.name)}（${esc(af.sel.sym)}）${af.sel.cg?"・価格ID: "+esc(af.sel.cg):"・価格IDなし（価格は手入力）"}</div>`:'<div class="sub">銘柄がまだ選ばれていません。</div>'}
 function grpHtml(){const ex=S.services.find(s=>norm(s.name)===norm(af.svc));return`<div class="seg" role="group" aria-label="区分">${["exchange","lending"].map(g=>`<button data-a="grp" data-g="${g}" aria-pressed="${af.group===g}" ${ex&&ex.group!==g?"disabled":""}>${GROUPS[g]}</button>`).join("")}</div>${ex?`<div class="sub">登録済みのサービスです（${GROUPS[ex.group]}）。</div>`:""}`}
-const SV_EX=["bitFlyer","GMOコイン","bitbank","Coincheck","SBI VCトレード","Zaif","Binance Japan"],SV_LEND=["PBRレンディング","BitLending"];
+const SV_EX=["bitFlyer","GMOコイン","bitbank","Coincheck","SBI VCトレード","Zaif","Binance Japan","楽天ウォレット"],SV_LEND=["PBRレンディング","BitLending"];
 const SV_ALIAS={"binance japan":["binance"]};
 const C10=[["BTC","ビットコイン"],["ETH","イーサリアム"],["USDT","テザー"],["BNB","バイナンスコイン"],["USDC","USDコイン"],["XRP","リップル"],["SOL","ソラナ"]];
 const coinOpen=()=>af.coinOther||!!(af.sel&&!C10.some(([y])=>{const r=CATALOG.find(x=>x.sym===y);return r&&r.cg===af.sel.cg}));
