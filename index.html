@@ -7,6 +7,9 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="保有資産">
 <meta name="theme-color" content="#14202b">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=2">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png?v=2">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=2">
 <title>保有資産メモ</title>
 <style>
 :root{--bg:#eef1f4;--card:#fff;--ink:#14202b;--mute:#5d6b78;--line:#d6dde4;--acc:#1f4fd8;--accink:#fff;--bar:#c9d6f7;--up:#0a7a48;--down:#b42318;--warn:#fff4d6;--warnink:#6b4a00;
@@ -73,6 +76,10 @@ a{color:var(--acc)}
 .seg button{min-height:46px}
 .seg button[aria-pressed="true"]{background:var(--acc);color:var(--accink);border-color:var(--acc);font-weight:700}
 .sel{background:var(--bar);border-radius:10px;padding:8px 12px;font-size:15px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chips button{min-height:46px;padding:0 14px;font-size:15px;font-weight:500}
+.chips button[aria-pressed="true"]{background:var(--acc);color:var(--accink);border-color:var(--acc);font-weight:700}
+.chips .tag{margin-left:6px}
 .pv{padding:10px 14px;border-bottom:1px solid var(--line);font-size:14px;font-variant-numeric:tabular-nums}
 .pv:last-child{border-bottom:0}
 .pv small{display:block;color:var(--mute)}
@@ -255,7 +262,7 @@ return{ok:true,kind:old===undefined?"add":"change",svc:s,coin:c,dec:p.dec}}
 
 let ST;try{ST=window.localStorage;ST.getItem(KEY)}catch(e){const m={};ST={getItem:k=>m[k]??null,setItem:(k,v)=>{m[k]=v},removeItem:k=>{delete m[k]}}}
 let S=load(ST),view="home",histSel=null,busy=false,armed="",toast="",saved=true,impText="",cand={},candMsg={};
-let af={svc:"",group:"exchange",q:"",sel:null,qty:"",res:[],online:null,onlineMsg:""};
+const AF0=()=>({svc:"",group:"exchange",other:false,q:"",sel:null,qty:"",res:[],online:null,onlineMsg:"",err:"",done:null});let af=AF0();
 let cs={text:"",plan:null};
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -318,20 +325,43 @@ ${ids.map(c=>`<div class="qrow"><label for="q-${s.id}-${c}">${esc(cn(c))}</label
 ${rest.length?`<div class="add"><select id="ad-${s.id}" aria-label="追加する銘柄">${rest.map(c=>`<option value="${c.id}">${esc(cn(c.id))}</option>`).join("")}</select><button class="s" data-a="addh" data-s="${s.id}">追加</button></div>`:""}</div>`}).join("")}`}
 
 function crHtml(){af.res=af.q.trim()?findCoins(S,af.q):[];const q=af.q.trim();
-if(!q)return'<div class="sub">名前か略称を入力すると、候補が出ます。</div>';
+if(!q)return'<div class="sub">上の10銘柄にないときは、名前か略称を入力すると候補が出ます。</div>';
 return(af.res.length?`<div class="cand">${af.res.map((r,i)=>`<button data-a="pickc" data-i="${i}">${esc(r.name)}（${esc(r.sym)}）${r.existingId?'<span class="tag">登録済み</span>':""}${r.cg?"":'<span class="tag w">価格IDなし</span>'}</button>`).join("")}</div>`:'<div class="sub">候補が見つかりませんでした。</div>')
 +`<div class="cand" style="margin-top:8px"><button class="s" data-a="onl">CoinGeckoで検索する</button>${af.online?af.online.map((r,i)=>`<button data-a="pickon" data-i="${i}">${esc(r.name)}（${esc(String(r.sym).toUpperCase())}）・時価総額順位 ${r.rank||"圏外"}・ID: ${esc(r.id)}</button>`).join(""):""}${af.onlineMsg?`<div class="sub">${esc(af.onlineMsg)}</div>`:""}<button class="s" data-a="nopr">「${esc(q)}」を価格IDなしで追加（価格は手入力）</button></div>`}
 function selHtml(){return af.sel?`<div class="sel">選択中：${esc(af.sel.name)}（${esc(af.sel.sym)}）${af.sel.cg?"・価格ID: "+esc(af.sel.cg):"・価格IDなし（価格は手入力）"}</div>`:'<div class="sub">銘柄がまだ選ばれていません。</div>'}
 function grpHtml(){const ex=S.services.find(s=>norm(s.name)===norm(af.svc));return`<div class="seg" role="group" aria-label="区分">${["exchange","lending"].map(g=>`<button data-a="grp" data-g="${g}" aria-pressed="${af.group===g}" ${ex&&ex.group!==g?"disabled":""}>${GROUPS[g]}</button>`).join("")}</div>${ex?`<div class="sub">登録済みのサービスです（${GROUPS[ex.group]}）。</div>`:""}`}
+const SV_EX=["bitFlyer","GMOコイン","bitbank","Coincheck","SBI VCトレード","Zaif","Binance Japan"],SV_LEND=["PBRレンディング","BitLending"];
+const SV_ALIAS={"binance japan":["binance"]};
+const C10=[["BTC","ビットコイン"],["ETH","イーサリアム"],["XRP","リップル"],["SOL","ソラナ"],["BNB","バイナンスコイン"],["ADA","カルダノ"],["BCH","ビットコインキャッシュ"],["DOGE","ドージコイン"],["DOT","ポルカドット"],["LINK","チェーンリンク"]];
+const svName=n=>{const k=norm(n);const e=S.services.find(s=>norm(s.name)===k)||S.services.find(s=>(SV_ALIAS[k]||[]).includes(norm(s.name)));return e?e.name:n};
+const c10pick=sym=>{const r=CATALOG.find(x=>x.sym===sym);const ex=S.coins.find(x=>x.cg===r.cg)||S.coins.find(x=>norm(x.sym)===norm(sym));return{existingId:ex?ex.id:null,sym,name:ex?ex.name:r.ja,cg:r.cg}};
+function svChips(names,g){const on=n=>!af.other&&af.svc&&norm(af.svc)===norm(svName(n));
+return names.map(n=>{const nm=svName(n);return`<button data-a="svpick" data-n="${esc(n)}" data-g="${g}" aria-pressed="${!!on(n)}">${esc(nm)}${S.services.some(s=>norm(s.name)===norm(nm))?'<span class="tag">登録済み</span>':""}</button>`}).join("")}
+function svExtra(g){const known=new Set([...SV_EX,...SV_LEND].map(n=>norm(svName(n))));
+return S.services.filter(s=>s.group===g&&!known.has(norm(s.name))).map(s=>`<button data-a="svpick" data-n="${esc(s.name)}" data-g="${g}" aria-pressed="${!af.other&&norm(af.svc)===norm(s.name)}">${esc(s.name)}<span class="tag">登録済み</span></button>`).join("")}
+function coinChips(){return C10.map(([sym,nm])=>{const r=CATALOG.find(x=>x.sym===sym);return`<button data-a="cpick" data-sym="${sym}" aria-pressed="${!!(af.sel&&af.sel.cg===r.cg)}"><b>${sym}</b> ${esc(nm)}</button>`}).join("")}
+function qInfo(){const ex=S.services.find(s=>norm(s.name)===norm(af.svc));if(!ex||!af.sel)return null;
+const c=S.coins.find(x=>x.id===af.sel.existingId)||(af.sel.cg&&S.coins.find(x=>x.cg===af.sel.cg))||S.coins.find(x=>norm(x.sym)===norm(af.sel.sym));
+const h=c&&S.holdings[ex.id];return h&&c.id in h?{q:h[c.id]}:null}
+function qHtml(){const cur=qInfo();const tg=af.svc&&af.sel?`<div class="sel">${esc(af.svc)} の ${esc(af.sel.sym)}</div>`:'<div class="sub">上で、取引所と銘柄を選んでください。</div>';
+return tg+(cur?`<div class="warn">登録済みです。現在の数量：<b>${cur.q==null?"未入力":esc(qdec(cur.q))}</b><br>保存すると、この数量が新しい数量に置き換わります（加算ではありません）。</div>`:"")+(af.err?`<div class="warn" role="alert">${esc(af.err)}</div>`:"")}
+function updQ(){const q=$("#qinfo");if(q)q.innerHTML=qHtml();const b=$("#afsave");if(b)b.textContent=qInfo()?"数量を更新して保存":"保存"}
+function regList(){return`<h2>登録済み</h2>${S.services.length?`<div class="card">${S.services.map(s=>`<div class="row"><span>${esc(s.name)}<span class="tag">${GROUPS[s.group]}</span></span><span class="amt">${Object.keys(S.holdings[s.id]||{}).length}銘柄</span></div>`).join("")}</div>`:'<div class="sub">まだありません。</div>'}`}
 function addView(){
-return`${toastHtml()}<h1>保有を追加</h1><p class="sub">サービスごとに、持っている銘柄と数量を登録します。同じサービス・銘柄を入れ直すと、数量が上書きされます。</p>
-<div class="card stack"><div><div class="lbl">サービス名（自由に入力）</div><input id="af-svc" list="svl" placeholder="例：bitFlyer、マイ取引所" autocomplete="off" value="${esc(af.svc)}"><datalist id="svl">${S.services.map(s=>`<option value="${esc(s.name)}">`).join("")}</datalist></div>
-<div id="grpseg">${grpHtml()}</div>
-<div><div class="lbl">銘柄（名前や略称で検索）</div><input id="af-q" placeholder="例：ビットコイン、BTC" autocomplete="off" autocapitalize="off" value="${esc(af.q)}"></div>
-<div id="cr">${crHtml()}</div><div id="asel">${selHtml()}</div>
-<div><div class="lbl">保有数量</div><input id="af-qty" inputmode="decimal" autocomplete="off" placeholder="例：0.05" value="${esc(af.qty)}"></div>
-<button class="p" style="margin-top:4px" data-a="afadd">追加</button></div>
-<h2>登録済み</h2>${S.services.length?`<div class="card">${S.services.map(s=>`<div class="row"><span>${esc(s.name)}<span class="tag">${GROUPS[s.group]}</span></span><span class="amt">${Object.keys(S.holdings[s.id]||{}).length}銘柄</span></div>`).join("")}</div>`:'<div class="sub">まだありません。</div>'}
+if(af.done){const d=af.done;return`<h1>保存しました</h1><div class="card stack"><div class="sel">${esc(d.svc)} に ${esc(d.sym)} ${esc(d.dec)} を${d.kind==="add"?"追加":"更新"}しました</div>
+<button class="p" data-a="again">同じ取引所でもう1銘柄追加</button><button data-a="othersv">別の取引所を選ぶ</button><button data-a="afdone">完了してホームへ</button></div>${regList()}`}
+return`${toastHtml()}<h1>保有を追加</h1><p class="sub">取引所と銘柄をタップして、数量を入れて「保存」を押すと登録されます。タップしただけでは登録されません。</p>
+<div class="card stack"><div><div class="lbl">どこに保有していますか？</div>
+<div class="chips" role="group" aria-label="取引所">${svChips(SV_EX,"exchange")}${svExtra("exchange")}</div>
+<div class="lbl" style="margin-top:10px">レンディング</div><div class="chips" role="group" aria-label="レンディング">${svChips(SV_LEND,"lending")}${svExtra("lending")}</div>
+<div class="chips" style="margin-top:10px"><button data-a="svother" aria-pressed="${af.other}">その他（自由に入力）</button></div>
+${af.other?`<div style="margin-top:10px"><input id="af-svc" list="svl" placeholder="例：マイ取引所" autocomplete="off" value="${esc(af.svc)}"><datalist id="svl">${S.services.map(s=>`<option value="${esc(s.name)}">`).join("")}</datalist></div><div id="grpseg" style="margin-top:8px">${grpHtml()}</div>`:""}</div>
+<div><div class="lbl">どの銘柄ですか？</div><div class="chips coins" role="group" aria-label="銘柄">${coinChips()}</div>
+<div class="lbl" style="margin-top:10px">それ以外の銘柄は検索（名前や略称）</div><input id="af-q" placeholder="例：ライトコイン、LTC" autocomplete="off" autocapitalize="off" value="${esc(af.q)}"></div>
+<div id="cr">${crHtml()}</div>
+<div><div class="lbl">数量はいくつですか？</div><div id="qinfo">${qHtml()}</div><input id="af-qty" inputmode="decimal" autocomplete="off" placeholder="例：0.05" value="${esc(af.qty)}" style="margin-top:8px"></div>
+<button class="p" id="afsave" style="margin-top:4px" data-a="afadd">${qInfo()?"数量を更新して保存":"保存"}</button></div>
+${regList()}
 <button class="p" data-a="afdone">${S.services.length?"完了してホームへ":"ホームへ戻る"}</button>`}
 
 function pvList(items,cls){return`<div class="card" style="margin-top:6px">${items.map(it=>{const nm=esc(it.svcName)+" / "+esc(it.coinLabel);let det="";
@@ -408,19 +438,24 @@ document.addEventListener("click",async e=>{const t=e.target.closest("[data-tab]
 if(t.dataset.tab){toast="";goView(t.dataset.tab);return}
 const a=t.dataset.a,s=t.dataset.s,c=t.dataset.c;
 if(a==="price")refreshPrices();
-else if(a==="goadd"){toast="";goView("add")}
+else if(a==="goadd"){toast="";af=AF0();goView("add")}
 else if(a==="gocsv"){toast="";cs={text:"",plan:null};goView("csv")}
-else if(a==="grp"){af.group=t.dataset.g;$("#grpseg").innerHTML=grpHtml()}
-else if(a==="pickc"){const r=af.res[+t.dataset.i];if(r){af.sel={existingId:r.existingId,sym:r.sym,name:r.name,cg:r.cg};$("#asel").innerHTML=selHtml();$("#af-qty").focus()}}
-else if(a==="pickon"){const r=af.online&&af.online[+t.dataset.i];if(r){af.sel={existingId:null,sym:String(r.sym).toUpperCase(),name:r.name,cg:r.id};$("#asel").innerHTML=selHtml();$("#af-qty").focus()}}
-else if(a==="nopr"){const q=af.q.trim();if(q){af.sel={existingId:null,sym:q.toUpperCase(),name:q,cg:null};$("#asel").innerHTML=selHtml();$("#af-qty").focus()}}
+else if(a==="grp"){af.group=t.dataset.g;af.err="";$("#grpseg").innerHTML=grpHtml()}
+else if(a==="svpick"){af.other=false;af.svc=svName(t.dataset.n);af.group=t.dataset.g;af.err="";render(true)}
+else if(a==="svother"){af.other=true;af.svc="";af.group="exchange";af.err="";render(true);const i=$("#af-svc");if(i)i.focus()}
+else if(a==="cpick"){af.sel=c10pick(t.dataset.sym);af.q="";af.res=[];af.online=null;af.onlineMsg="";af.err="";render(true);$("#af-qty").focus()}
+else if(a==="again"){af.done=null;af.sel=null;af.qty="";af.q="";af.err="";render()}
+else if(a==="othersv"){af.done=null;af.svc="";af.other=false;af.sel=null;af.qty="";af.q="";af.err="";render()}
+else if(a==="pickc"){const r=af.res[+t.dataset.i];if(r){af.sel={existingId:r.existingId,sym:r.sym,name:r.name,cg:r.cg};af.err="";render(true);$("#af-qty").focus()}}
+else if(a==="pickon"){const r=af.online&&af.online[+t.dataset.i];if(r){af.sel={existingId:null,sym:String(r.sym).toUpperCase(),name:r.name,cg:r.id};af.err="";render(true);$("#af-qty").focus()}}
+else if(a==="nopr"){const q=af.q.trim();if(q){af.sel={existingId:null,sym:q.toUpperCase(),name:q,cg:null};af.err="";render(true);$("#af-qty").focus()}}
 else if(a==="onl"){const q=af.q.trim();if(!q)return;af.onlineMsg="検索中…";af.online=null;$("#cr").innerHTML=crHtml();
 try{af.online=await searchCoins((u,o)=>fetch(u,o),q,apiKey());af.onlineMsg=af.online.length?"同じ記号の別の銘柄が混ざるため、名前と順位を見て選んでください":"CoinGeckoにも候補がありませんでした"}catch(err){af.online=null;af.onlineMsg=err&&err.known?err.message:"検索できませんでした（通信を確認してください）"}
 if(view==="add")$("#cr").innerHTML=crHtml()}
-else if(a==="afadd"){const r=addHolding(S,{svcName:af.svc,group:af.group,pick:af.sel,qtyStr:af.qty});
-if(!r.ok){toast=r.err;render(true);return}
-afterChange();toast=`${r.svc.name} に ${r.coin.sym} ${r.dec} を${r.kind==="add"?"追加":"更新"}しました`;af.q="";af.sel=null;af.qty="";af.res=[];af.online=null;af.onlineMsg="";render(true);const q=$("#af-q");if(q)q.focus()}
-else if(a==="afdone"){toast=S.services.length?"登録しました。価格を取得しています…":"";view="home";render();if(S.services.length)refreshPrices()}
+else if(a==="afadd"){af.qty=($("#af-qty")||{value:af.qty}).value;const r=addHolding(S,{svcName:af.svc,group:af.group,pick:af.sel,qtyStr:af.qty});
+if(!r.ok){af.err=r.err;render(true);return}
+afterChange();af.done={svc:r.svc.name,sym:r.coin.sym,dec:r.dec,kind:r.kind};af.group=r.svc.group;af.svc=r.svc.name;af.sel=null;af.qty="";af.q="";af.res=[];af.online=null;af.onlineMsg="";af.err="";render()}
+else if(a==="afdone"){af=AF0();toast=S.services.length?"登録しました。価格を取得しています…":"";view="home";render();if(S.services.length)refreshPrices()}
 else if(a==="sampledl"){download("holdings-sample.csv",SAMPLE_CSV);toast="見本CSVを保存しました。ダウンロードできない場合は「コピー」を使ってください";render(true)}
 else if(a==="samplecp")copyText(SAMPLE_CSV,t);
 else if(a==="csvdl"){download("holdings-"+todayJ()+".csv",exportCSV(S));toast="CSVを書き出しました。保存先は、iPhoneの「ファイル」アプリです";render(true)}
@@ -443,9 +478,9 @@ else if(a==="copy"){copyText($("#bt").value,t)}
 else if(a==="restore"){const txt=$("#rt").value;impText=txt;if(armed!=="res"){armed="res";render(true);return}armed="";
 try{const n=check(JSON.parse(txt));if(!n.history.length)n.history=S.history;for(const k in S.prices)if(!n.prices[k]&&n.coins.some(x=>x.id===k))n.prices[k]=S.prices[k];if(!n.fetch)n.fetch=S.fetch;S=n;persist();impText="";toast="データを取り込みました";view="home";render();refreshPrices()}catch(err){render(true);$("#rm").textContent="取り込めません："+err.message}}});
 document.addEventListener("input",e=>{const t=e.target;
-if(t.id==="af-svc"){af.svc=t.value;const ex=S.services.find(s=>norm(s.name)===norm(af.svc));if(ex)af.group=ex.group;$("#grpseg").innerHTML=grpHtml()}
+if(t.id==="af-svc"){af.svc=t.value;af.err="";const ex=S.services.find(s=>norm(s.name)===norm(af.svc));if(ex)af.group=ex.group;const g=$("#grpseg");if(g)g.innerHTML=grpHtml();updQ()}
 else if(t.id==="af-q"){af.q=t.value;af.online=null;af.onlineMsg="";$("#cr").innerHTML=crHtml()}
-else if(t.id==="af-qty")af.qty=t.value;
+else if(t.id==="af-qty"){af.qty=t.value;if(af.err){af.err="";updQ()}}
 else if(t.id==="csvt")cs.text=t.value});
 document.addEventListener("change",async e=>{const t=e.target;
 if(t.classList.contains("q")){const p=parseQty(t.value);if(!p.ok){toast="数字として読めません。数量を確認してください";render(true);return}
