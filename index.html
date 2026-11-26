@@ -80,6 +80,7 @@ a{color:var(--acc)}
 .chips button{min-height:46px;padding:0 14px;font-size:15px;font-weight:500}
 .chips button[aria-pressed="true"]{background:var(--acc);color:var(--accink);border-color:var(--acc);font-weight:700}
 .chips .tag{margin-left:6px}
+.chips button[aria-pressed="true"] .tag{color:inherit;background:transparent;border-color:currentColor}
 .pv{padding:10px 14px;border-bottom:1px solid var(--line);font-size:14px;font-variant-numeric:tabular-nums}
 .pv:last-child{border-bottom:0}
 .pv small{display:block;color:var(--mute)}
@@ -262,7 +263,7 @@ return{ok:true,kind:old===undefined?"add":"change",svc:s,coin:c,dec:p.dec}}
 
 let ST;try{ST=window.localStorage;ST.getItem(KEY)}catch(e){const m={};ST={getItem:k=>m[k]??null,setItem:(k,v)=>{m[k]=v},removeItem:k=>{delete m[k]}}}
 let S=load(ST),view="home",histSel=null,busy=false,armed="",toast="",saved=true,impText="",cand={},candMsg={};
-const AF0=()=>({svc:"",group:"exchange",other:false,q:"",sel:null,qty:"",res:[],online:null,onlineMsg:"",err:"",done:null});let af=AF0();
+const AF0=()=>({svc:"",group:"exchange",other:false,coinOther:false,q:"",sel:null,qty:"",res:[],online:null,onlineMsg:"",err:"",done:null});let af=AF0();
 let cs={text:"",plan:null};
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -325,14 +326,15 @@ ${ids.map(c=>`<div class="qrow"><label for="q-${s.id}-${c}">${esc(cn(c))}</label
 ${rest.length?`<div class="add"><select id="ad-${s.id}" aria-label="追加する銘柄">${rest.map(c=>`<option value="${c.id}">${esc(cn(c.id))}</option>`).join("")}</select><button class="s" data-a="addh" data-s="${s.id}">追加</button></div>`:""}</div>`}).join("")}`}
 
 function crHtml(){af.res=af.q.trim()?findCoins(S,af.q):[];const q=af.q.trim();
-if(!q)return'<div class="sub">上の10銘柄にないときは、名前か略称を入力すると候補が出ます。</div>';
+if(!q)return'<div class="sub">名前か略称を入力すると、候補が出ます。見つからなければ「価格IDなしで追加」もできます。</div>';
 return(af.res.length?`<div class="cand">${af.res.map((r,i)=>`<button data-a="pickc" data-i="${i}">${esc(r.name)}（${esc(r.sym)}）${r.existingId?'<span class="tag">登録済み</span>':""}${r.cg?"":'<span class="tag w">価格IDなし</span>'}</button>`).join("")}</div>`:'<div class="sub">候補が見つかりませんでした。</div>')
 +`<div class="cand" style="margin-top:8px"><button class="s" data-a="onl">CoinGeckoで検索する</button>${af.online?af.online.map((r,i)=>`<button data-a="pickon" data-i="${i}">${esc(r.name)}（${esc(String(r.sym).toUpperCase())}）・時価総額順位 ${r.rank||"圏外"}・ID: ${esc(r.id)}</button>`).join(""):""}${af.onlineMsg?`<div class="sub">${esc(af.onlineMsg)}</div>`:""}<button class="s" data-a="nopr">「${esc(q)}」を価格IDなしで追加（価格は手入力）</button></div>`}
 function selHtml(){return af.sel?`<div class="sel">選択中：${esc(af.sel.name)}（${esc(af.sel.sym)}）${af.sel.cg?"・価格ID: "+esc(af.sel.cg):"・価格IDなし（価格は手入力）"}</div>`:'<div class="sub">銘柄がまだ選ばれていません。</div>'}
 function grpHtml(){const ex=S.services.find(s=>norm(s.name)===norm(af.svc));return`<div class="seg" role="group" aria-label="区分">${["exchange","lending"].map(g=>`<button data-a="grp" data-g="${g}" aria-pressed="${af.group===g}" ${ex&&ex.group!==g?"disabled":""}>${GROUPS[g]}</button>`).join("")}</div>${ex?`<div class="sub">登録済みのサービスです（${GROUPS[ex.group]}）。</div>`:""}`}
 const SV_EX=["bitFlyer","GMOコイン","bitbank","Coincheck","SBI VCトレード","Zaif","Binance Japan"],SV_LEND=["PBRレンディング","BitLending"];
 const SV_ALIAS={"binance japan":["binance"]};
-const C10=[["BTC","ビットコイン"],["ETH","イーサリアム"],["XRP","リップル"],["SOL","ソラナ"],["BNB","バイナンスコイン"],["ADA","カルダノ"],["BCH","ビットコインキャッシュ"],["DOGE","ドージコイン"],["DOT","ポルカドット"],["LINK","チェーンリンク"]];
+const C10=[["BTC","ビットコイン"],["ETH","イーサリアム"],["USDT","テザー"],["BNB","バイナンスコイン"],["USDC","USDコイン"],["XRP","リップル"],["SOL","ソラナ"]];
+const coinOpen=()=>af.coinOther||!!(af.sel&&!C10.some(([y])=>{const r=CATALOG.find(x=>x.sym===y);return r&&r.cg===af.sel.cg}));
 const svName=n=>{const k=norm(n);const e=S.services.find(s=>norm(s.name)===k)||S.services.find(s=>(SV_ALIAS[k]||[]).includes(norm(s.name)));return e?e.name:n};
 const c10pick=sym=>{const r=CATALOG.find(x=>x.sym===sym);const ex=S.coins.find(x=>x.cg===r.cg)||S.coins.find(x=>norm(x.sym)===norm(sym));return{existingId:ex?ex.id:null,sym,name:ex?ex.name:r.ja,cg:r.cg}};
 function svChips(names,g){const on=n=>!af.other&&af.svc&&norm(af.svc)===norm(svName(n));
@@ -352,13 +354,12 @@ if(af.done){const d=af.done;return`<h1>保存しました</h1><div class="card s
 <button class="p" data-a="again">同じ取引所でもう1銘柄追加</button><button data-a="othersv">別の取引所を選ぶ</button><button data-a="afdone">完了してホームへ</button></div>${regList()}`}
 return`${toastHtml()}<h1>保有を追加</h1><p class="sub">取引所と銘柄をタップして、数量を入れて「保存」を押すと登録されます。タップしただけでは登録されません。</p>
 <div class="card stack"><div><div class="lbl">どこに保有していますか？</div>
-<div class="chips" role="group" aria-label="取引所">${svChips(SV_EX,"exchange")}${svExtra("exchange")}</div>
+<div class="chips" role="group" aria-label="取引所">${svChips(SV_EX,"exchange")}${svExtra("exchange")}<button data-a="svother" aria-pressed="${af.other}">その他（自由に入力）</button></div>
 <div class="lbl" style="margin-top:10px">レンディング</div><div class="chips" role="group" aria-label="レンディング">${svChips(SV_LEND,"lending")}${svExtra("lending")}</div>
-<div class="chips" style="margin-top:10px"><button data-a="svother" aria-pressed="${af.other}">その他（自由に入力）</button></div>
 ${af.other?`<div style="margin-top:10px"><input id="af-svc" list="svl" placeholder="例：マイ取引所" autocomplete="off" value="${esc(af.svc)}"><datalist id="svl">${S.services.map(s=>`<option value="${esc(s.name)}">`).join("")}</datalist></div><div id="grpseg" style="margin-top:8px">${grpHtml()}</div>`:""}</div>
-<div><div class="lbl">どの銘柄ですか？</div><div class="chips coins" role="group" aria-label="銘柄">${coinChips()}</div>
-<div class="lbl" style="margin-top:10px">それ以外の銘柄は検索（名前や略称）</div><input id="af-q" placeholder="例：ライトコイン、LTC" autocomplete="off" autocapitalize="off" value="${esc(af.q)}"></div>
-<div id="cr">${crHtml()}</div>
+<div><div class="lbl">どの銘柄ですか？</div><div class="chips coins" role="group" aria-label="銘柄">${coinChips()}<button data-a="cother" aria-pressed="${coinOpen()}">その他（検索・自由に入力）</button></div>
+${coinOpen()?`<div class="lbl" style="margin-top:10px">銘柄の名前か略称を入力</div><input id="af-q" placeholder="例：ライトコイン、LTC" autocomplete="off" autocapitalize="off" value="${esc(af.q)}">`:""}</div>
+${coinOpen()?`<div id="cr">${crHtml()}</div>`:""}
 <div><div class="lbl">数量はいくつですか？</div><div id="qinfo">${qHtml()}</div><input id="af-qty" inputmode="decimal" autocomplete="off" placeholder="例：0.05" value="${esc(af.qty)}" style="margin-top:8px"></div>
 <button class="p" id="afsave" style="margin-top:4px" data-a="afadd">${qInfo()?"数量を更新して保存":"保存"}</button></div>
 ${regList()}
@@ -442,10 +443,11 @@ else if(a==="goadd"){toast="";af=AF0();goView("add")}
 else if(a==="gocsv"){toast="";cs={text:"",plan:null};goView("csv")}
 else if(a==="grp"){af.group=t.dataset.g;af.err="";$("#grpseg").innerHTML=grpHtml()}
 else if(a==="svpick"){af.other=false;af.svc=svName(t.dataset.n);af.group=t.dataset.g;af.err="";render(true)}
+else if(a==="cother"){af.coinOther=true;af.sel=null;af.err="";render(true);const i=$("#af-q");if(i)i.focus()}
 else if(a==="svother"){af.other=true;af.svc="";af.group="exchange";af.err="";render(true);const i=$("#af-svc");if(i)i.focus()}
-else if(a==="cpick"){af.sel=c10pick(t.dataset.sym);af.q="";af.res=[];af.online=null;af.onlineMsg="";af.err="";render(true);$("#af-qty").focus()}
-else if(a==="again"){af.done=null;af.sel=null;af.qty="";af.q="";af.err="";render()}
-else if(a==="othersv"){af.done=null;af.svc="";af.other=false;af.sel=null;af.qty="";af.q="";af.err="";render()}
+else if(a==="cpick"){af.sel=c10pick(t.dataset.sym);af.coinOther=false;af.q="";af.res=[];af.online=null;af.onlineMsg="";af.err="";render(true);$("#af-qty").focus()}
+else if(a==="again"){af.done=null;af.coinOther=false;af.sel=null;af.qty="";af.q="";af.err="";render()}
+else if(a==="othersv"){af.done=null;af.coinOther=false;af.svc="";af.other=false;af.sel=null;af.qty="";af.q="";af.err="";render()}
 else if(a==="pickc"){const r=af.res[+t.dataset.i];if(r){af.sel={existingId:r.existingId,sym:r.sym,name:r.name,cg:r.cg};af.err="";render(true);$("#af-qty").focus()}}
 else if(a==="pickon"){const r=af.online&&af.online[+t.dataset.i];if(r){af.sel={existingId:null,sym:String(r.sym).toUpperCase(),name:r.name,cg:r.id};af.err="";render(true);$("#af-qty").focus()}}
 else if(a==="nopr"){const q=af.q.trim();if(q){af.sel={existingId:null,sym:q.toUpperCase(),name:q,cg:null};af.err="";render(true);$("#af-qty").focus()}}
