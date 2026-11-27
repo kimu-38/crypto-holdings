@@ -76,10 +76,10 @@ a{color:var(--acc)}
 .seg button{min-height:46px}
 .seg button[aria-pressed="true"]{background:var(--acc);color:var(--accink);border-color:var(--acc);font-weight:700}
 .sel{background:var(--bar);border-radius:10px;padding:8px 12px;font-size:15px}
-.seg.s3{grid-template-columns:repeat(3,1fr)}
+.seg.s5{grid-template-columns:repeat(5,1fr);gap:6px}.seg.s5 button{padding:0 2px;font-size:14px}
 .cv{display:block;width:100%;height:auto;margin-top:6px;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .cg{stroke:var(--line);stroke-width:1}.ct{fill:var(--mute);font-size:9.5px;font-variant-numeric:tabular-nums}
-.cl{stroke:var(--acc);stroke-width:2.2;stroke-linecap:round}.cd{fill:var(--card);stroke:var(--acc);stroke-width:2}.cd.on{fill:var(--acc)}
+.cl{stroke:var(--acc);stroke-width:2.2;stroke-linecap:round}.cd{fill:var(--card);stroke:var(--acc);stroke-width:2}.cd.on{fill:var(--acc)}.dense .cd:not(.on){display:none}.dense .cl{stroke-width:1.6}
 .cread{margin-top:10px}.cread b{font-size:20px;font-variant-numeric:tabular-nums}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .chips button{min-height:46px;padding:0 14px;font-size:15px;font-weight:500}
@@ -173,7 +173,7 @@ function chartSeries(d,range,today){const m=new Map();for(const h of(d.history||
 const all=[...m.entries()].sort((a,b)=>a[0]<b[0]?-1:1).map(([date,total])=>({date,total}));
 if(!all.length)return{all,points:[],start:today,end:today,span:0};
 const last=all[all.length-1].date,end=today>last?today:last;
-const start=range==="7"?dayAdd(today,-6):range==="30"?dayAdd(today,-29):all[0].date;
+const back={"7":6,"30":29,"90":89,"365":364}[range];const start=back!=null?dayAdd(today,-back):all[0].date;
 const e2=range==="all"?end:(today>last?today:last);
 const points=all.filter(x=>x.date>=start&&x.date<=e2).map(x=>({...x,x:dayDiff(start,x.date)}));
 return{all,points,start,end:e2,span:Math.max(0,dayDiff(start,e2))}}
@@ -303,10 +303,11 @@ const up=df.amount>0,dn=df.amount<0,sg=up?"+":dn?"−":"±",pct=df.pct==null?"":
 return`<div class="diff ${up?"up":dn?"down":""}">${sg}${yen(Math.abs(df.amount))}円${pct}</div><div class="sub"><b>${cmpName(df)}</b>（比較元：${fdate(df.prevDate)}の記録）。評価額の変化で、売買や数量の修正も含みます${df.caution?"。除外している銘柄が前回と違うため、参考値です":""}</div>`}
 let gr={range:"30",sel:null};
 const CW=340,CH=214,CL=66,CR=14,CT=22,CB=28;
+const cdl=d=>d.slice(0,4)===todayJ().slice(0,4)?mdOf(d):fdate(d);
 const cxp=(x,span)=>{const W=CW-CL-CR;return span?CL+10+x/span*(W-20):CL+W/2};
 function niceStep(r){const e=Math.pow(10,Math.floor(Math.log10(r))),f=r/e;return(f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10)*e}
 function chartHtml(){const cs=chartSeries(S,gr.range,todayJ()),pts=cs.points;
-const seg=`<div class="seg s3" role="group" aria-label="期間">${[["7","7日"],["30","30日"],["all","全期間"]].map(([k,l])=>`<button data-a="grange" data-r="${k}" aria-pressed="${gr.range===k}">${l}</button>`).join("")}</div>`;
+const seg=`<div class="seg s5" role="group" aria-label="期間">${[["7","7日"],["30","30日"],["90","3か月"],["365","1年"],["all","全期間"]].map(([k,l])=>`<button data-a="grange" data-r="${k}" aria-pressed="${gr.range===k}">${l}</button>`).join("")}</div>`;
 if(!cs.all.length)return`${seg}<div class="sub" style="margin-top:10px">まだ記録がありません。価格の更新に成功すると、その日の合計評価額が保存され、ここに表示されます。</div>`;
 if(!pts.length)return`${seg}<div class="sub" style="margin-top:10px">この期間（${fdate(cs.start)}〜${fdate(cs.end)}）の記録はありません。「全期間」に切り替えると、これまでの記録を見られます。</div>`;
 const sel=pts.find(x=>x.date===gr.sel)||pts[pts.length-1];
@@ -317,15 +318,15 @@ const W=CW-CL-CR,H=CH-CT-CB,px=x=>cxp(x,cs.span),py=v=>CT+(hi-v)/(hi-lo)*H;
 const ticks=[];for(let v=lo;v<=hi+step/2;v+=step)ticks.push(v);
 const xt=[];if(cs.span===0)xt.push(0);else if(cs.span<=7)for(let i=0;i<=cs.span;i++)xt.push(i);else for(let i=0;i<=4;i++)xt.push(Math.round(i*cs.span/4));
 let g=ticks.map(v=>`<line class="cg" x1="${CL}" x2="${CW-CR}" y1="${py(v).toFixed(1)}" y2="${py(v).toFixed(1)}"/><text class="ct" x="${CL-6}" y="${(py(v)+3).toFixed(1)}" text-anchor="end">${yen(v)}</text>`).join("");
-g+=[...new Set(xt)].map(k=>`<text class="ct" x="${px(k).toFixed(1)}" y="${CH-8}" text-anchor="middle">${mdOf(dayAdd(cs.start,k))}</text>`).join("");
+g+=[...new Set(xt)].map(k=>`<text class="ct" x="${px(k).toFixed(1)}" y="${CH-8}" text-anchor="middle">${cs.span>150?(t=>t.slice(2).replace(/-/g,"/"))(dayAdd(cs.start,k)):mdOf(dayAdd(cs.start,k))}</text>`).join("");
 let path="";for(let i=0;i<pts.length-1;i++)if(pts[i+1].x-pts[i].x===1)path+=`<line class="cl" x1="${px(pts[i].x).toFixed(1)}" y1="${py(pts[i].total).toFixed(1)}" x2="${px(pts[i+1].x).toFixed(1)}" y2="${py(pts[i+1].total).toFixed(1)}"/>`;
 const dots=pts.map(x=>`<circle class="cd${x.date===sel.date?" on":""}" cx="${px(x.x).toFixed(1)}" cy="${py(x.total).toFixed(1)}" r="${x.date===sel.date?5.5:3.4}"/>`).join("");
 const prev=cs.all.filter(x=>x.date<sel.date).pop(),a=prev?sel.total-prev.total:null;
-const dl=prev?`<span class="${a>0?"up":a<0?"down":""}">${a>0?"+":a<0?"−":"±"}${yen(Math.abs(a))}円</span>（${prev.date===dayAdd(sel.date,-1)?"前日比":"前回記録比："+mdOf(prev.date)+"の記録"}）`:"最初の記録です";
+const dl=prev?`<span class="${a>0?"up":a<0?"down":""}">${a>0?"+":a<0?"−":"±"}${yen(Math.abs(a))}円</span>（${prev.date===dayAdd(sel.date,-1)?"前日比":"前回記録比："+cdl(prev.date)+"の記録"}）`:"最初の記録です";
 const gaps=pts.length>1&&pts.some((x,i)=>i&&x.x-pts[i-1].x>1);
-return`${seg}<div class="cread" aria-live="polite"><b>${mdOf(sel.date)}　${yen(sel.total)}円</b><div class="sub">${dl}</div></div>
-<svg class="cv" viewBox="0 0 ${CW} ${CH}" role="img" aria-label="資産総額の推移の折れ線グラフ。点をタップすると、その日の金額が表示されます">${g}<text class="ct" x="${CL-6}" y="12" text-anchor="end">円</text>${path}${dots}<rect data-a="gplot" x="${CL-8}" y="${CT-8}" width="${W+16}" height="${H+16}" fill="transparent"/></svg>
-<div class="sub" style="font-size:12px">${pts.length===1?"記録は1日分です。記録が増えると、線でつながります。":"線でつながるのは、記録が連続した日だけです。"+(gaps?"記録のない日は空白で、補間していません。":"")}売買や数量の変更も反映されます。</div>`}
+return`${seg}<div class="cread" aria-live="polite"><b>${cdl(sel.date)}　${yen(sel.total)}円</b><div class="sub">${dl}</div></div>
+<svg class="cv${pts.length>45?" dense":""}" viewBox="0 0 ${CW} ${CH}" role="img" aria-label="資産総額の推移の折れ線グラフ。点をタップすると、その日の金額が表示されます">${g}<text class="ct" x="${CL-6}" y="12" text-anchor="end">円</text>${path}${dots}<rect data-a="gplot" x="${CL-8}" y="${CT-8}" width="${W+16}" height="${H+16}" fill="transparent"/></svg>
+<div class="sub" style="font-size:12px">${pts.length===1?"記録は1日分です。記録が増えると、線でつながります。":"線でつながるのは、記録が連続した日だけです。"+(gaps?"記録のない日は空白で、補間していません。":"")}売買や数量の変更も反映されます。${gr.range==="90"?"3か月は直近90日分です。":gr.range==="365"?"1年は直近365日分です。":""}</div>`}
 function chartSect(){return`<h2>資産総額の推移</h2><div class="card" style="padding:12px 14px" id="chart">${chartHtml()}</div>`}
 const toastHtml=()=>toast?`<div class="toast" role="status">${esc(toast)}</div>`:"";
 
